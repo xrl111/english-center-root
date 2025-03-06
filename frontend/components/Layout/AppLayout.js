@@ -3,8 +3,8 @@ import { ThemeProvider } from '@mui/material/styles';
 import { LocalizationProvider } from '@mui/x-date-pickers';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { CssBaseline } from '@mui/material';
-import { QueryClient, QueryClientProvider } from 'react-query';
-import { ReactQueryDevtools } from 'react-query/devtools';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import createEmotionCache from '../../utils/createEmotionCache';
 import theme from '../../styles/theme';
 import ErrorBoundary from '../ErrorBoundary';
@@ -26,10 +26,7 @@ const queryClient = new QueryClient({
 const AppLayout = ({
   children,
   emotionCache = clientSideEmotionCache,
-  pageProps,
 }) => {
-  const getLayout = children?.type?.getLayout || ((page) => page);
-
   return (
     <CacheProvider value={emotionCache}>
       <ThemeProvider theme={theme}>
@@ -38,7 +35,7 @@ const AppLayout = ({
             <AuthProvider>
               <CssBaseline />
               <ErrorBoundary>
-                {getLayout(children, pageProps)}
+                {children}
               </ErrorBoundary>
               {process.env.NODE_ENV === 'development' && <ReactQueryDevtools />}
             </AuthProvider>

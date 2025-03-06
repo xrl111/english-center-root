@@ -1,180 +1,151 @@
 import { useState } from 'react';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Container,
   Grid,
   Typography,
-  TextField,
-  Box,
-  MenuItem,
+  Card,
+  CardContent,
+  CardMedia,
   Button,
-  FormControl,
-  InputLabel,
-  Select,
+  Box,
+  TextField,
+  MenuItem,
 } from '@mui/material';
-import { Add as AddIcon, Search as SearchIcon } from '@mui/icons-material';
-import { courseApi } from '../../utils/api';
-import SEO from '../../components/SEO';
-import ContentCard from '../../components/ContentCard';
-import NoData from '../../components/NoData';
+import Link from 'next/link';
+import MainLayout from '../../components/Layout/MainLayout';
 import LoadingOverlay from '../../components/LoadingOverlay';
-import FormDialog from '../../components/FormDialog';
-import CourseForm from '../../components/CourseForm';
-import useNotification, { showSuccess, showError } from '../../hooks/useNotification';
-import useMutation from '../../hooks/useMutation';
+import { courseApi } from '../../utils/api';
 
-const levels = ['All Levels', 'Beginner', 'Intermediate', 'Advanced'];
+const levels = ['All', 'Beginner', 'Intermediate', 'Advanced', 'Expert'];
 
-export default function Courses() {
+export default function CoursesPage() {
   const [filters, setFilters] = useState({
+    level: 'All',
     search: '',
-    level: 'All Levels',
   });
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const { showNotification, NotificationComponent } = useNotification();
 
-  // Fetch courses
   const {
-    data: courses,
+    data: courses = [],
     isLoading,
-    error,
     refetch,
   } = useQuery(['courses', filters], () =>
     courseApi.getAll({
-      search: filters.search,
-      level: filters.level === 'All Levels' ? undefined : filters.level,
+      level: filters.level === 'All' ? undefined : filters.level,
+      search: filters.search || undefined,
     })
   );
 
-  // Create course mutation
-  const createCourseMutation = useMutation(courseApi.create, {
-    onSuccess: () => {
-      showSuccess(showNotification, 'Course created successfully');
-      setIsCreateDialogOpen(false);
-      refetch();
-    },
-    onError: (error) => {
-      showError(showNotification, error.message);
-    },
-  });
-
   const handleFilterChange = (event) => {
     const { name, value } = event.target;
-    setFilters((prev) => ({ ...prev, [name]: value }));
+    setFilters((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
   };
-
-  const handleCreateCourse = async (values) => {
-    await createCourseMutation.mutate(values);
-  };
-
-  if (isLoading) return <LoadingOverlay />;
 
   return (
-    <>
-      <SEO
-        title="Courses"
-        description="Browse our comprehensive selection of courses"
-        keywords={['courses', 'education', 'learning']}
-      />
-
+    <MainLayout>
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        {/* Header */}
-        <Box
-          sx={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            mb: 4,
-          }}
-        >
-          <Typography variant="h3" component="h1">
-            Courses
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={() => setIsCreateDialogOpen(true)}
-          >
-            Add Course
-          </Button>
-        </Box>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Our Courses
+        </Typography>
 
         {/* Filters */}
-        <Grid container spacing={2} sx={{ mb: 4 }}>
-          <Grid item xs={12} md={8}>
-            <TextField
-              fullWidth
-              name="search"
-              label="Search Courses"
-              value={filters.search}
-              onChange={handleFilterChange}
-              InputProps={{
-                startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
-              }}
-            />
-          </Grid>
-          <Grid item xs={12} md={4}>
-            <FormControl fullWidth>
-              <InputLabel>Level</InputLabel>
-              <Select
+        <Box sx={{ mb: 4 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={6} md={4}>
+              <TextField
+                fullWidth
+                name="search"
+                label="Search Courses"
+                value={filters.search}
+                onChange={handleFilterChange}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6} md={4}>
+              <TextField
+                fullWidth
+                select
                 name="level"
+                label="Level"
                 value={filters.level}
                 onChange={handleFilterChange}
-                label="Level"
               >
                 {levels.map((level) => (
                   <MenuItem key={level} value={level}>
                     {level}
                   </MenuItem>
                 ))}
-              </Select>
-            </FormControl>
+              </TextField>
+            </Grid>
           </Grid>
-        </Grid>
+        </Box>
 
-        {/* Course List */}
-        {error ? (
-          <NoData
-            title="Error Loading Courses"
-            message="There was an error loading the courses. Please try again later."
-          />
-        ) : courses?.length > 0 ? (
-          <Grid container spacing={4}>
+        {isLoading ? (
+          <LoadingOverlay />
+        ) : (
+          <Grid container spacing={3}>
             {courses.map((course) => (
-              <Grid item key={course._id} xs={12} sm={6} md={4}>
-                <ContentCard
-                  title={course.title}
-                  description={course.description}
-                  image={course.image}
-                  category={course.level}
-                  chips={[course.duration]}
-                  link={`/courses/${course._id}`}
-                />
+              <Grid item xs={12} sm={6} md={4} key={course._id}>
+                <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  {course.image && (
+                    <CardMedia
+                      component="img"
+                      height="200"
+                      image={course.image}
+                      alt={course.title}
+                    />
+                  )}
+                  <CardContent sx={{ flexGrow: 1 }}>
+                    <Typography gutterBottom variant="h5" component="h2">
+                      {course.title}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      paragraph
+                      sx={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                      }}
+                    >
+                      {course.description}
+                    </Typography>
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        mt: 2,
+                      }}
+                    >
+                      <Typography
+                        variant="subtitle2"
+                        color="primary"
+                        sx={{ fontWeight: 'bold' }}
+                      >
+                        {course.level}
+                      </Typography>
+                      <Button
+                        component={Link}
+                        href={`/courses/${course._id}`}
+                        variant="contained"
+                        size="small"
+                      >
+                        Learn More
+                      </Button>
+                    </Box>
+                  </CardContent>
+                </Card>
               </Grid>
             ))}
           </Grid>
-        ) : (
-          <NoData
-            title="No Courses Found"
-            message="No courses match your search criteria."
-          />
         )}
       </Container>
-
-      {/* Create Course Dialog */}
-      <FormDialog
-        open={isCreateDialogOpen}
-        onClose={() => setIsCreateDialogOpen(false)}
-        title="Create New Course"
-        maxWidth="md"
-      >
-        <CourseForm
-          onSubmit={handleCreateCourse}
-          isSubmitting={createCourseMutation.isLoading}
-        />
-      </FormDialog>
-
-      <NotificationComponent />
-    </>
+    </MainLayout>
   );
 }

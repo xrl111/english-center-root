@@ -1,14 +1,11 @@
 import createCache from '@emotion/cache';
+import rtlPlugin from 'stylis-plugin-rtl';
 
 export default function createEmotionCache() {
-  const isBrowser = typeof document !== 'undefined';
-
   return createCache({
     key: 'css',
     prepend: true,
-    // Prevent FOUC on server side
-    stylisPlugins: isBrowser ? [] : [
-      require('stylis-plugin-rtl')(),
-    ],
+    // Use empty array for stylisPlugins by default
+    stylisPlugins: [],
   });
 }

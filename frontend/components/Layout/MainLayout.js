@@ -17,12 +17,9 @@ import {
   Menu,
   MenuItem,
   Divider,
+  Grid,
 } from '@mui/material';
-import {
-  Menu as MenuIcon,
-  Person as PersonIcon,
-  Login as LoginIcon,
-} from '@mui/icons-material';
+import { Menu as MenuIcon, Person as PersonIcon, Login as LoginIcon } from '@mui/icons-material';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../../contexts/AuthContext';
@@ -48,7 +45,7 @@ function MainLayout({ children }) {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleMenuOpen = (event) => {
+  const handleMenuOpen = event => {
     setAnchorEl(event.currentTarget);
   };
 
@@ -69,7 +66,7 @@ function MainLayout({ children }) {
       </Typography>
       <Divider />
       <List>
-        {navigationItems.map((item) => (
+        {navigationItems.map(item => (
           <ListItem
             key={item.href}
             component={Link}
@@ -122,8 +119,14 @@ function MainLayout({ children }) {
             </Typography>
 
             {!isMobile && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {navigationItems.map((item) => (
+              <Box
+                sx={{
+                  alignItems: 'center',
+                  flexDirection: 'row !important',
+                  gap: 2,
+                }}
+              >
+                {navigationItems.map(item => (
                   <Button
                     key={item.href}
                     component={Link}
@@ -140,32 +143,17 @@ function MainLayout({ children }) {
               {isAuthenticated ? (
                 <>
                   <IconButton onClick={handleMenuOpen}>
-                    <Avatar
-                      sx={{ width: 32, height: 32 }}
-                      alt={user?.username}
-                    >
+                    <Avatar sx={{ width: 32, height: 32 }} alt={user?.username}>
                       {user?.username?.[0]?.toUpperCase()}
                     </Avatar>
                   </IconButton>
-                  <Menu
-                    anchorEl={anchorEl}
-                    open={Boolean(anchorEl)}
-                    onClose={handleMenuClose}
-                  >
-                    <MenuItem
-                      component={Link}
-                      href="/profile"
-                      onClick={handleMenuClose}
-                    >
+                  <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}>
+                    <MenuItem component={Link} href="/profile" onClick={handleMenuClose}>
                       <PersonIcon sx={{ mr: 1 }} fontSize="small" />
                       Profile
                     </MenuItem>
                     {user?.role === 'admin' && (
-                      <MenuItem
-                        component={Link}
-                        href="/admin"
-                        onClick={handleMenuClose}
-                      >
+                      <MenuItem component={Link} href="/admin" onClick={handleMenuClose}>
                         Dashboard
                       </MenuItem>
                     )}
@@ -253,12 +241,8 @@ function MainLayout({ children }) {
                 Quick Links
               </Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                {navigationItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    style={{ textDecoration: 'none' }}
-                  >
+                {navigationItems.map(item => (
+                  <Link key={item.href} href={item.href} style={{ textDecoration: 'none' }}>
                     <Typography
                       variant="body2"
                       color="text.secondary"
@@ -271,12 +255,7 @@ function MainLayout({ children }) {
               </Box>
             </Grid>
           </Grid>
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            align="center"
-            sx={{ mt: 3 }}
-          >
+          <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 3 }}>
             © {new Date().getFullYear()} English Center. All rights reserved.
           </Typography>
         </Container>

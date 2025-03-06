@@ -18,7 +18,7 @@ import {
   ArrowForward as ArrowForwardIcon,
 } from '@mui/icons-material';
 import Link from 'next/link';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import MainLayout from '../components/Layout/MainLayout';
 import SEO from '../components/SEO';
 import LoadingOverlay from '../components/LoadingOverlay';

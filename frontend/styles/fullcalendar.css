@@ -1,0 +1,42 @@
+/* Import FullCalendar base styles */
+@import url('~@fullcalendar/common/main.css');
+@import url('~@fullcalendar/daygrid/main.css');
+@import url('~@fullcalendar/timegrid/main.css');
+
+/* Custom FullCalendar theme */
+.fc {
+  height: 100%;
+  --fc-border-color: #ddd;
+  --fc-button-text-color: #fff;
+  --fc-button-bg-color: #1976d2;
+  --fc-button-border-color: #1976d2;
+  --fc-button-hover-bg-color: #1565c0;
+  --fc-button-hover-border-color: #1565c0;
+  --fc-button-active-bg-color: #1565c0;
+  --fc-button-active-border-color: #1565c0;
+  --fc-event-bg-color: #1976d2;
+  --fc-event-border-color: #1976d2;
+  --fc-today-bg-color: rgba(25, 118, 210, 0.1);
+}
+
+.fc .fc-toolbar {
+  margin-bottom: 1.5em;
+}
+
+.fc .fc-button {
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+.fc-toolbar-title {
+  font-size: 1.2em !important;
+}
+
+.fc-event {
+  cursor: pointer;
+}
+
+.fc-timegrid-event .fc-event-time {
+  font-size: 0.85em;
+  margin-bottom: 0;
+}

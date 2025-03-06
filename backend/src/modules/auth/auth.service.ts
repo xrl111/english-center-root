@@ -1,118 +1,251 @@
-import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Injectable, UnauthorizedException, BadRequestException, Inject } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import { User, UserDocument } from '../../schemas/user.schema';
-import { LoginDto, RegisterDto } from './dto/auth.dto';
+import { UsersService } from '../users/users.service';
+import { CreateUserDto } from '../users/dto/user.dto';
+import { UserDocument } from '../users/schemas/user.schema';
+import { AppLogger } from '../../services/logger.service';
+import { AUTH_ERRORS, AUTH_MESSAGES, AuthTokens, JwtPayload, RefreshTokenPayload } from './auth.module';
+import { UserRole } from './types/roles';
+import * as crypto from 'crypto';
+import { FilterQuery } from 'mongoose';
+
+// Import Profile Response type
+export interface ProfileResponse {
+  id: string;
+  email: string;
+  username: string;
+  firstName?: string;
+  lastName?: string;
+  role: UserRole;
+  isEmailVerified: boolean;
+  lastLogin?: Date;
+}
+
+interface JwtConfig {
+  secret: string;
+  refreshSecret: string;
+  expiresIn: string;
+  refreshExpiresIn: string;
+}
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectModel(User.name) private userModel: Model<UserDocument>,
+    private usersService: UsersService,
     private jwtService: JwtService,
-  ) {}
-
-  async register(registerDto: RegisterDto): Promise<{ token: string }> {
-    const { email, password, username, role } = registerDto;
-
-    // Check if user already exists
-    const existingUser = await this.userModel.findOne({ email });
-    if (existingUser) {
-      throw new ConflictException('User with this email already exists');
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create new user
-    const user = new this.userModel({
-      email,
-      username,
-      password: hashedPassword,
-      role: role || 'user',
-    });
-    await user.save();
-
-    // Generate JWT token
-    const token = this.jwtService.sign({
-      sub: user._id,
-      email: user.email,
-      role: user.role,
-    });
-
-    return { token };
+    private logger: AppLogger,
+    @Inject('JWT_CONFIG') private jwtConfig: JwtConfig,
+  ) {
+    this.logger.setContext('AuthService');
   }
 
-  async login(loginDto: LoginDto): Promise<{ token: string }> {
-    const { email, password } = loginDto;
-
-    // Find user
-    const user = await this.userModel.findOne({ email });
+  async validateUser(email: string, password: string): Promise<UserDocument> {
+    const user = await this.usersService.findByEmail(email);
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS);
     }
 
-    // Check password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+    const isValid = await user.comparePassword(password);
+    if (!isValid) {
+      throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS);
     }
 
-    // Update last login
+    if (!user.isActive) {
+      throw new UnauthorizedException(AUTH_ERRORS.ACCOUNT_DISABLED);
+    }
+
+    if (!user.isEmailVerified) {
+      throw new UnauthorizedException(AUTH_ERRORS.EMAIL_NOT_VERIFIED);
+    }
+
+    // Update last login time
     user.lastLogin = new Date();
     await user.save();
-
-    // Generate JWT token
-    const token = this.jwtService.sign({
-      sub: user._id,
-      email: user.email,
-      role: user.role,
-    });
-
-    return { token };
-  }
-
-  async validateUser(payload: any): Promise<User> {
-    const user = await this.userModel.findById(payload.sub);
-    if (!user || !user.isActive) {
-      throw new UnauthorizedException();
-    }
+    
     return user;
   }
 
-  async getProfile(userId: string): Promise<Partial<User>> {
-    const user = await this.userModel.findById(userId);
-    if (!user) {
-      throw new UnauthorizedException();
-    }
-    
-    // Exclude sensitive information
-    const { password, ...result } = user.toObject();
-    return result;
+  async login(user: UserDocument): Promise<AuthTokens> {
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.generateAccessToken(payload),
+      this.generateRefreshToken(payload),
+    ]);
+
+    // Update refresh tokens array
+    user.refreshTokens = [refreshToken, ...user.refreshTokens.slice(0, 4)];
+    await user.save();
+
+    return {
+      accessToken,
+      refreshToken,
+      expiresIn: this.getExpiresInSeconds(this.jwtConfig.expiresIn),
+    };
   }
 
-  async findAll(role?: string): Promise<Partial<User>[]> {
-    const query = role ? { role } : {};
-    const users = await this.userModel.find(query).exec();
-    
-    // Exclude sensitive information from all users
-    return users.map(user => {
-      const { password, ...result } = user.toObject();
-      return result;
+  async register(createUserDto: CreateUserDto): Promise<UserDocument> {
+    // Set default role as USER if not specified
+    const userToCreate = {
+      ...createUserDto,
+      role: createUserDto.role || UserRole.USER,
+    };
+
+    const user = await this.usersService.create(userToCreate);
+    await this.generateEmailVerification(user);
+    return user;
+  }
+
+  async getUserProfile(userId: string): Promise<ProfileResponse> {
+    const user = await this.usersService.findById(userId);
+    return {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isEmailVerified: user.isEmailVerified,
+      lastLogin: user.lastLogin,
+    };
+  }
+
+  async refreshToken(refreshToken: string): Promise<AuthTokens> {
+    try {
+      const payload = await this.verifyRefreshToken(refreshToken);
+      const user = await this.usersService.findById(payload.sub);
+
+      if (!user || !user.refreshTokens.includes(refreshToken)) {
+        throw new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN);
+      }
+
+      // Remove the used refresh token and update with new one
+      user.refreshTokens = user.refreshTokens.filter(token => token !== refreshToken);
+      await user.save();
+
+      // Generate new tokens
+      return this.login(user);
+    } catch (error) {
+      this.logger.error('Error refreshing token', error.stack);
+      throw new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN);
+    }
+  }
+
+  async logout(userId: string, refreshToken: string): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (user) {
+      user.refreshTokens = user.refreshTokens.filter(token => token !== refreshToken);
+      await user.save();
+    }
+  }
+
+  async verifyEmail(token: string): Promise<void> {
+    try {
+      const users = await this.usersService.findByFilter({ emailVerificationToken: token });
+      const user = users[0];
+      
+      if (!user) {
+        throw new BadRequestException(AUTH_ERRORS.INVALID_TOKEN);
+      }
+
+      user.isEmailVerified = true;
+      user.emailVerificationToken = undefined;
+      await user.save();
+    } catch (error) {
+      this.logger.error('Error verifying email', error.stack);
+      throw new BadRequestException(AUTH_ERRORS.INVALID_TOKEN);
+    }
+  }
+
+  async requestPasswordReset(email: string): Promise<void> {
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      // Don't reveal whether a user exists
+      return;
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    user.passwordResetToken = token;
+    user.passwordResetExpires = new Date(Date.now() + 3600000); // 1 hour
+    await user.save();
+
+    // TODO: Send password reset email
+    this.logger.debug(`Password reset token for ${email}: ${token}`);
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const users = await this.usersService.findByFilter({ 
+      passwordResetToken: token,
+      passwordResetExpires: { $gt: new Date() }
+    });
+    const user = users[0];
+
+    if (!user) {
+      throw new BadRequestException(AUTH_ERRORS.INVALID_TOKEN);
+    }
+
+    await user.setPassword(newPassword);
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+  }
+
+  private async generateAccessToken(payload: JwtPayload): Promise<string> {
+    return this.jwtService.signAsync(payload, {
+      secret: this.jwtConfig.secret,
+      expiresIn: this.jwtConfig.expiresIn,
     });
   }
 
-  async deleteUser(id: string): Promise<void> {
-    const user = await this.userModel.findById(id);
-    if (!user) {
-      throw new NotFoundException('User not found');
+  private async generateRefreshToken(payload: JwtPayload): Promise<string> {
+    const refreshPayload: RefreshTokenPayload = {
+      ...payload,
+      tokenVersion: Date.now(),
+    };
+
+    return this.jwtService.signAsync(refreshPayload, {
+      secret: this.jwtConfig.refreshSecret,
+      expiresIn: this.jwtConfig.refreshExpiresIn,
+    });
+  }
+
+  private async verifyRefreshToken(token: string): Promise<RefreshTokenPayload> {
+    try {
+      return await this.jwtService.verifyAsync(token, {
+        secret: this.jwtConfig.refreshSecret,
+      });
+    } catch {
+      throw new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN);
     }
-    
-    if (user.role === 'admin') {
-      throw new UnauthorizedException('Cannot delete admin users');
+  }
+
+  private getExpiresInSeconds(expiresIn: string): number {
+    const match = expiresIn.match(/^(\d+)([smhd])$/);
+    if (!match) {
+      return 3600; // Default to 1 hour
     }
-    
-    await this.userModel.findByIdAndDelete(id);
+
+    const [, value, unit] = match;
+    const multipliers = {
+      s: 1,
+      m: 60,
+      h: 3600,
+      d: 86400,
+    };
+
+    return parseInt(value, 10) * multipliers[unit as keyof typeof multipliers];
+  }
+
+  private async generateEmailVerification(user: UserDocument): Promise<void> {
+    const token = crypto.randomBytes(32).toString('hex');
+    user.emailVerificationToken = token;
+    await user.save();
+
+    // TODO: Send verification email
+    this.logger.debug(`Verification token for ${user.email}: ${token}`);
   }
 }

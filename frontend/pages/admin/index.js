@@ -1,207 +1,118 @@
-import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
-  Box,
+  Container,
   Grid,
-  Paper,
-  Typography,
   Card,
   CardContent,
-  Stack,
-  IconButton,
+  Typography,
+  Box,
   List,
   ListItem,
   ListItemText,
-  ListItemSecondary,
-  Button,
-  Divider,
+  ListItemIcon,
 } from '@mui/material';
 import {
+  Person as PersonIcon,
   School as SchoolIcon,
   Event as EventIcon,
   Article as ArticleIcon,
-  Group as GroupIcon,
-  ArrowForward as ArrowForwardIcon,
 } from '@mui/icons-material';
-import { useQuery } from 'react-query';
-import { useRouter } from 'next/router';
-import AdminLayout from '../../components/AdminLayout';
-import { withAuth } from '../../components/withAuth';
+import AdminLayout from '../../components/Layout/AdminLayout';
 import LoadingOverlay from '../../components/LoadingOverlay';
-import SEO from '../../components/SEO';
 import { formatDate } from '../../utils/dateUtils';
+import api from '../../utils/api';
 
-function AdminDashboard() {
-  const router = useRouter();
-
+export default function AdminDashboard() {
   const { data: stats, isLoading: isLoadingStats } = useQuery(
-    'dashboard-stats',
-    async () => {
-      const response = await fetch('/api/admin/stats');
-      if (!response.ok) throw new Error('Failed to fetch stats');
-      return response.json();
-    }
+    ['dashboard-stats'],
+    () => api.get('/admin/stats').then((res) => res.data)
   );
 
   const { data: recentActivity, isLoading: isLoadingActivity } = useQuery(
-    'recent-activity',
-    async () => {
-      const response = await fetch('/api/admin/activity');
-      if (!response.ok) throw new Error('Failed to fetch activity');
-      return response.json();
-    }
+    ['recent-activity'],
+    () => api.get('/admin/activity').then((res) => res.data)
   );
 
-  const statsCards = [
+  if (isLoadingStats || isLoadingActivity) return <LoadingOverlay />;
+
+  const statCards = [
     {
-      title: 'Total Courses',
-      value: stats?.courses || 0,
+      title: 'Total Users',
+      value: stats?.totalUsers || 0,
+      icon: <PersonIcon sx={{ fontSize: 40 }} color="primary" />,
+    },
+    {
+      title: 'Active Courses',
+      value: stats?.activeCourses || 0,
       icon: <SchoolIcon sx={{ fontSize: 40 }} color="primary" />,
-      link: '/admin/courses',
     },
     {
       title: 'Upcoming Classes',
       value: stats?.upcomingClasses || 0,
       icon: <EventIcon sx={{ fontSize: 40 }} color="primary" />,
-      link: '/admin/schedule',
     },
     {
-      title: 'Active News',
-      value: stats?.activeNews || 0,
+      title: 'Published News',
+      value: stats?.publishedNews || 0,
       icon: <ArticleIcon sx={{ fontSize: 40 }} color="primary" />,
-      link: '/admin/news',
-    },
-    {
-      title: 'Total Users',
-      value: stats?.users || 0,
-      icon: <GroupIcon sx={{ fontSize: 40 }} color="primary" />,
-      link: '/admin/users',
     },
   ];
 
-  if (isLoadingStats || isLoadingActivity) return <LoadingOverlay />;
-
   return (
-    <>
-      <SEO title="Admin Dashboard" />
-      <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          Dashboard Overview
+    <AdminLayout>
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom>
+          Dashboard
         </Typography>
 
-        <Grid container spacing={3}>
-          {/* Stats Cards */}
-          {statsCards.map((card) => (
-            <Grid item xs={12} sm={6} md={3} key={card.title}>
-              <Paper elevation={2}>
-                <Card>
-                  <CardContent>
-                    <Stack
-                      direction="row"
-                      justifyContent="space-between"
-                      alignItems="center"
-                    >
-                      <Box>
-                        <Typography
-                          variant="h4"
-                          component="div"
-                          sx={{ fontWeight: 'bold' }}
-                        >
-                          {card.value}
-                        </Typography>
-                        <Typography color="text.secondary" sx={{ mt: 1 }}>
-                          {card.title}
-                        </Typography>
-                      </Box>
-                      {card.icon}
-                    </Stack>
-                    <Button
-                      endIcon={<ArrowForwardIcon />}
-                      sx={{ mt: 2 }}
-                      onClick={() => router.push(card.link)}
-                    >
-                      View Details
-                    </Button>
-                  </CardContent>
-                </Card>
-              </Paper>
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          {statCards.map((stat) => (
+            <Grid item xs={12} sm={6} md={3} key={stat.title}>
+              <Card>
+                <CardContent>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    {stat.icon}
+                    <Typography variant="h4">{stat.value}</Typography>
+                  </Box>
+                  <Typography color="text.secondary" sx={{ mt: 1 }}>
+                    {stat.title}
+                  </Typography>
+                </CardContent>
+              </Card>
             </Grid>
           ))}
-
-          {/* Recent Activity */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                Recent Activity
-              </Typography>
-              <List>
-                {recentActivity?.map((activity, index) => (
-                  <Box key={activity.id}>
-                    <ListItem
-                      secondaryAction={
-                        <Typography variant="caption" color="text.secondary">
-                          {formatDate(activity.timestamp)}
-                        </Typography>
-                      }
-                    >
-                      <ListItemText
-                        primary={activity.description}
-                        secondary={activity.user}
-                      />
-                    </ListItem>
-                    {index < recentActivity.length - 1 && <Divider />}
-                  </Box>
-                ))}
-              </List>
-            </Paper>
-          </Grid>
-
-          {/* Quick Stats */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" gutterBottom>
-                System Status
-              </Typography>
-              <List>
-                <ListItem>
-                  <ListItemText
-                    primary="Active Sessions"
-                    secondary={stats?.activeSessions || 0}
-                  />
-                </ListItem>
-                <Divider />
-                <ListItem>
-                  <ListItemText
-                    primary="New Users (This Week)"
-                    secondary={stats?.newUsers || 0}
-                  />
-                </ListItem>
-                <Divider />
-                <ListItem>
-                  <ListItemText
-                    primary="Scheduled Classes (This Week)"
-                    secondary={stats?.weeklyClasses || 0}
-                  />
-                </ListItem>
-                <Divider />
-                <ListItem>
-                  <ListItemText
-                    primary="Published News (This Month)"
-                    secondary={stats?.monthlyNews || 0}
-                  />
-                </ListItem>
-              </List>
-            </Paper>
-          </Grid>
         </Grid>
-      </Box>
-    </>
+
+        <Card>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Recent Activity
+            </Typography>
+            <List>
+              {recentActivity?.map((activity) => (
+                <ListItem key={activity._id} divider>
+                  <ListItemIcon>
+                    {activity.type === 'user' && <PersonIcon />}
+                    {activity.type === 'course' && <SchoolIcon />}
+                    {activity.type === 'schedule' && <EventIcon />}
+                    {activity.type === 'news' && <ArticleIcon />}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={activity.description}
+                    secondary={formatDate(activity.timestamp)}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </CardContent>
+        </Card>
+      </Container>
+    </AdminLayout>
   );
 }
-
-// Use AdminLayout for this page
-AdminDashboard.getLayout = function getLayout(page) {
-  return <AdminLayout>{page}</AdminLayout>;
-};
-
-// Export with admin authentication protection
-export default withAuth(AdminDashboard, { requireAdmin: true });

@@ -1,65 +1,56 @@
 import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Box,
+  Container,
   Typography,
-  Button,
-  Paper,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Paper,
   IconButton,
   Chip,
   Select,
   MenuItem,
-  TablePagination,
+  FormControl,
+  Box,
 } from '@mui/material';
 import {
   Block as BlockIcon,
   CheckCircle as CheckCircleIcon,
-  Edit as EditIcon,
 } from '@mui/icons-material';
-import { useQuery, useQueryClient } from 'react-query';
 import AdminLayout from '../../components/AdminLayout';
-import { withAuth } from '../../components/withAuth';
+import useNotification from '../../hooks/useNotification';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import LoadingOverlay from '../../components/LoadingOverlay';
-import NoData from '../../components/NoData';
-import SEO from '../../components/SEO';
-import useNotification from '../../hooks/useNotification';
 import useMutation from '../../hooks/useMutation';
 import { formatDate } from '../../utils/dateUtils';
 
-const ROLES = {
-  admin: { label: 'Admin', color: 'error' },
-  user: { label: 'User', color: 'primary' },
-};
-
-function AdminUsers() {
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+export default function UsersPage() {
   const [confirmAction, setConfirmAction] = useState(null);
   const queryClient = useQueryClient();
   const { showNotification, NotificationComponent } = useNotification();
 
   const { data: users, isLoading } = useQuery(['users'], async () => {
     const response = await fetch('/api/auth/users');
-    if (!response.ok) throw new Error('Failed to fetch users');
+    if (!response.ok) {
+      throw new Error('Failed to fetch users');
+    }
     return response.json();
   });
 
   const updateRoleMutation = useMutation(
     async ({ userId, role }) => {
       const response = await fetch(`/api/auth/users/${userId}/role`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role }),
       });
-      if (!response.ok) throw new Error('Failed to update role');
+      if (!response.ok) {
+        throw new Error('Failed to update user role');
+      }
       return response.json();
     },
     {
@@ -67,174 +58,136 @@ function AdminUsers() {
         showNotification('User role updated successfully', 'success');
         queryClient.invalidateQueries(['users']);
       },
+      onError: (error) => {
+        showNotification(error.message, 'error');
+      },
     }
   );
 
   const toggleStatusMutation = useMutation(
     async ({ userId, isActive }) => {
       const response = await fetch(`/api/auth/users/${userId}/status`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive }),
       });
-      if (!response.ok) throw new Error('Failed to update status');
+      if (!response.ok) {
+        throw new Error(`Failed to ${isActive ? 'activate' : 'deactivate'} user`);
+      }
       return response.json();
     },
     {
-      onSuccess: (_, { isActive }) => {
-        showNotification(
-          `User ${isActive ? 'activated' : 'deactivated'} successfully`,
-          'success'
-        );
+      onSuccess: () => {
+        showNotification('User status updated successfully', 'success');
         queryClient.invalidateQueries(['users']);
+      },
+      onError: (error) => {
+        showNotification(error.message, 'error');
       },
     }
   );
 
-  const handleChangePage = (_, newPage) => {
-    setPage(newPage);
-  };
-
-  const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
-    setPage(0);
-  };
-
-  const handleRoleChange = async (user, newRole) => {
-    if (user.role === 'admin' && newRole !== 'admin') {
-      setSelectedUser(user);
-      setConfirmAction(() => () =>
-        updateRoleMutation.mutate({ userId: user._id, role: newRole })
-      );
-      setIsConfirmDialogOpen(true);
-    } else {
-      await updateRoleMutation.mutate({ userId: user._id, role: newRole });
-    }
+  const handleRoleChange = (userId, role) => {
+    setConfirmAction({
+      type: 'role',
+      title: 'Change User Role',
+      message: `Are you sure you want to change this user's role to ${role}?`,
+      action: () => updateRoleMutation.mutate({ userId, role }),
+    });
   };
 
   const handleToggleStatus = (user) => {
-    setSelectedUser(user);
-    setConfirmAction(() => () =>
-      toggleStatusMutation.mutate({
-        userId: user._id,
-        isActive: !user.isActive,
-      })
-    );
-    setIsConfirmDialogOpen(true);
+    setConfirmAction({
+      type: 'status',
+      title: `${user.isActive ? 'Deactivate' : 'Activate'} User`,
+      message: `Are you sure you want to ${
+        user.isActive ? 'deactivate' : 'activate'
+      } this user?`,
+      action: () =>
+        toggleStatusMutation.mutate({ userId: user._id, isActive: !user.isActive }),
+    });
   };
 
   if (isLoading) return <LoadingOverlay />;
 
   return (
-    <>
-      <SEO title="Manage Users" />
-      <Box sx={{ p: 3 }}>
+    <AdminLayout>
+      <Container maxWidth="lg" sx={{ py: 4 }}>
         <Typography variant="h4" gutterBottom>
-          Manage Users
+          User Management
         </Typography>
 
-        {!users?.length ? (
-          <NoData message="No users found" />
-        ) : (
-          <Paper>
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Username</TableCell>
-                    <TableCell>Email</TableCell>
-                    <TableCell>Role</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell>Last Login</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {users
-                    .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                    .map((user) => (
-                      <TableRow key={user._id}>
-                        <TableCell>{user.username}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>
-                          <Select
-                            size="small"
-                            value={user.role}
-                            onChange={(e) => handleRoleChange(user, e.target.value)}
-                            disabled={updateRoleMutation.isLoading}
-                          >
-                            {Object.entries(ROLES).map(([role, { label }]) => (
-                              <MenuItem key={role} value={role}>
-                                {label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={user.isActive ? 'Active' : 'Inactive'}
-                            color={user.isActive ? 'success' : 'default'}
-                            size="small"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          {user.lastLogin ? formatDate(user.lastLogin) : 'Never'}
-                        </TableCell>
-                        <TableCell>
-                          <IconButton
-                            color={user.isActive ? 'error' : 'success'}
-                            onClick={() => handleToggleStatus(user)}
-                            disabled={toggleStatusMutation.isLoading}
-                          >
-                            {user.isActive ? <BlockIcon /> : <CheckCircleIcon />}
-                          </IconButton>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <TablePagination
-              component="div"
-              count={users.length}
-              rowsPerPage={rowsPerPage}
-              page={page}
-              onPageChange={handleChangePage}
-              onRowsPerPageChange={handleChangeRowsPerPage}
-              rowsPerPageOptions={[5, 10, 25]}
-            />
-          </Paper>
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Username</TableCell>
+                <TableCell>Email</TableCell>
+                <TableCell>Role</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Joined</TableCell>
+                <TableCell align="right">Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {users?.map((user) => (
+                <TableRow key={user._id}>
+                  <TableCell>{user.username}</TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>
+                    <FormControl size="small">
+                      <Select
+                        value={user.role}
+                        onChange={(e) => handleRoleChange(user._id, e.target.value)}
+                      >
+                        <MenuItem value="student">Student</MenuItem>
+                        <MenuItem value="instructor">Instructor</MenuItem>
+                        <MenuItem value="admin">Admin</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={user.isActive ? 'Active' : 'Inactive'}
+                      color={user.isActive ? 'success' : 'error'}
+                      size="small"
+                    />
+                  </TableCell>
+                  <TableCell>{formatDate(user.createdAt)}</TableCell>
+                  <TableCell align="right">
+                    <IconButton
+                      onClick={() => handleToggleStatus(user)}
+                      color={user.isActive ? 'error' : 'success'}
+                    >
+                      {user.isActive ? <BlockIcon /> : <CheckCircleIcon />}
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+
+        {confirmAction && (
+          <ConfirmDialog
+            open={true}
+            title={confirmAction.title}
+            message={confirmAction.message}
+            onConfirm={() => {
+              confirmAction.action();
+              setConfirmAction(null);
+            }}
+            onCancel={() => setConfirmAction(null)}
+            isLoading={
+              confirmAction.type === 'role'
+                ? updateRoleMutation.isLoading
+                : toggleStatusMutation.isLoading
+            }
+          />
         )}
 
-        <ConfirmDialog
-          open={isConfirmDialogOpen}
-          title="Confirm Action"
-          message={
-            selectedUser?.role === 'admin'
-              ? 'Are you sure you want to remove admin privileges from this user?'
-              : `Are you sure you want to ${
-                  selectedUser?.isActive ? 'deactivate' : 'activate'
-                } this user?`
-          }
-          onConfirm={() => {
-            confirmAction();
-            setIsConfirmDialogOpen(false);
-          }}
-          onCancel={() => setIsConfirmDialogOpen(false)}
-          isLoading={updateRoleMutation.isLoading || toggleStatusMutation.isLoading}
-          severity="warning"
-        />
-
         <NotificationComponent />
-      </Box>
-    </>
+      </Container>
+    </AdminLayout>
   );
 }
-
-// Use AdminLayout for this page
-AdminUsers.getLayout = function getLayout(page) {
-  return <AdminLayout>{page}</AdminLayout>;
-};
-
-// Export with admin authentication protection
-export default withAuth(AdminUsers, { requireAdmin: true });

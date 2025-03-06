@@ -1,40 +1,97 @@
-import { Document, Types } from 'mongoose';
-import { User } from '../schemas/user.schema';
-import { Course } from '../schemas/course.schema';
+import { Document, ObjectId } from 'mongoose';
 
 declare module 'mongoose' {
-  // Add type checking for ObjectId methods
   interface ObjectId {
-    equals(other: ObjectId | string): boolean;
+    equals(otherId: string | ObjectId | undefined): boolean;
+    toString(): string;
+    toHexString(): string;
   }
 
-  // Interface for Documents with ObjectId
-  interface BaseDocument extends Document {
-    _id: Types.ObjectId;
+  // Add timestamps to all documents
+  interface Document {
+    createdAt: Date;
+    updatedAt: Date;
   }
 
-  // Type for populated fields
-  type PopulatedDoc<T> = T | Types.ObjectId;
-
-  // Type for User Document
-  interface UserDocument extends User, BaseDocument {
-    _id: Types.ObjectId;
+  // Add support for lean queries with virtuals
+  interface QueryOptions {
+    lean?: boolean | { virtuals?: boolean };
   }
 
-  // Type for Course Document
-  interface CourseDocument extends Course, BaseDocument {
-    _id: Types.ObjectId;
-    instructor: PopulatedDoc<UserDocument>;
-    students: PopulatedDoc<UserDocument>[];
+  // Add support for virtuals in SchemaOptions
+  interface SchemaOptions {
+    virtuals?: boolean;
+    timestamps?: boolean;
+    toJSON?: {
+      virtuals?: boolean;
+      transform?: (doc: any, ret: any, options: any) => any;
+    };
+    toObject?: {
+      virtuals?: boolean;
+      transform?: (doc: any, ret: any, options: any) => any;
+    };
+  }
+
+  // Add support for schema statics with correct types
+  interface SchemaStatics {
+    [key: string]: any;
+  }
+
+  // Add support for schema methods with correct types
+  interface SchemaMethods {
+    [key: string]: any;
+  }
+
+  // Add support for schema virtuals with correct types
+  interface SchemaVirtuals {
+    [key: string]: any;
+  }
+
+  // Add support for schema instance methods with correct types
+  interface DocumentToObjectOptions {
+    virtuals?: boolean;
+    transform?: (doc: any, ret: any, options: any) => any;
+  }
+
+  // Add support for population with virtuals
+  interface PopulateOptions {
+    path: string;
+    select?: string | object;
+    model?: string | Model<any>;
+    match?: object;
+    options?: object;
+    populate?: string | PopulateOptions | Array<PopulateOptions>;
+    justOne?: boolean;
+    lean?: boolean;
+    virtual?: boolean;
   }
 }
 
-// Helper type for document arrays
-export type DocumentArray<T> = T[] & {
-  [index: number]: T & BaseDocument;
-};
+// Helper types for schema methods and virtuals
+export interface BaseDocument extends Document {
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-// Helper type for populated fields
-export type Populated<M, K extends keyof M> = Omit<M, K> & {
-  [P in K]: M[P] extends Types.ObjectId[] ? Document[] : Document;
+export interface WithTimestamps {
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface WithVirtuals {
+  id: string;
+  [key: string]: any;
+}
+
+export type DocumentWithTimestamps<T> = T & WithTimestamps;
+export type DocumentWithVirtuals<T> = T & WithVirtuals;
+export type FullDocument<T> = DocumentWithTimestamps<DocumentWithVirtuals<T>>;
+
+// Helper type for converting string IDs to ObjectId
+export type WithObjectId<T> = {
+  [P in keyof T]: T[P] extends string | undefined
+    ? ObjectId
+    : T[P] extends string[]
+    ? ObjectId[]
+    : T[P];
 };

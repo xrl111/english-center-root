@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useMutation as useReactQuery } from '@tanstack/react-query';
 import useNotification from './useNotification';
 
 const useMutation = (mutationFn, {
@@ -7,54 +7,35 @@ const useMutation = (mutationFn, {
   onSettled,
   successMessage,
   errorMessage,
+  ...options
 } = {}) => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
   const { showSuccess, showError } = useNotification();
 
-  const mutate = useCallback(async (...args) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const result = await mutationFn(...args);
-
-      if (successMessage) {
-        showSuccess(typeof successMessage === 'function' 
-          ? successMessage(result)
-          : successMessage
-        );
-      }
-
-      onSuccess?.(result, ...args);
-      return result;
-    } catch (error) {
-      setError(error);
-
-      const message = typeof errorMessage === 'function'
-        ? errorMessage(error)
-        : errorMessage || error.message;
-
-      showError(message);
-      onError?.(error, ...args);
-      throw error;
-    } finally {
-      setIsLoading(false);
-      onSettled?.(...args);
+  return useReactQuery(
+    mutationFn,
+    {
+      ...options,
+      onSuccess: (data, variables, context) => {
+        if (successMessage) {
+          showSuccess(
+            typeof successMessage === 'function'
+              ? successMessage(data)
+              : successMessage
+          );
+        }
+        onSuccess?.(data, variables, context);
+      },
+      onError: (error, variables, context) => {
+        const message = typeof errorMessage === 'function'
+          ? errorMessage(error)
+          : errorMessage || error.message;
+        
+        showError(message);
+        onError?.(error, variables, context);
+      },
+      onSettled,
     }
-  }, [mutationFn, onSuccess, onError, onSettled, successMessage, errorMessage, showSuccess, showError]);
-
-  const reset = useCallback(() => {
-    setError(null);
-    setIsLoading(false);
-  }, []);
-
-  return {
-    mutate,
-    mutateAsync: mutate,
-    isLoading,
-    error,
-    reset,
-  };
+  );
 };
 
 export default useMutation;

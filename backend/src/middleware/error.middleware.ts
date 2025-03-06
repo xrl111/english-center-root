@@ -1,180 +1,152 @@
-import { Request, Response, NextFunction } from 'express';
-import { HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
+import { Response } from 'express';
 import { MongoError } from 'mongodb';
-import { Error as MongooseError } from 'mongoose';
-import config from '../config';
+import mongoose from 'mongoose';
 
-export class AppError extends HttpException {
-  constructor(
-    message: string,
-    status: number = HttpStatus.INTERNAL_SERVER_ERROR,
-    public code?: string,
-    public details?: any
-  ) {
-    super(message, status);
+export interface ErrorResponse {
+  statusCode: number;
+  message: string;
+  error: string;
+  details?: any;
+  timestamp: string;
+  path: string;
+}
+
+@Catch()
+export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger('GlobalExceptionFilter');
+
+  catch(exception: any, host: ArgumentsHost): void {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest();
+
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message = 'Internal server error';
+    let error = 'Server Error';
+    let details = undefined;
+
+    // Handle different types of errors
+    if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      const response = exception.getResponse() as any;
+      message = response.message || exception.message;
+      error = response.error || 'Request Error';
+      details = response.details;
+    } else if (exception instanceof MongoError) {
+      switch (exception.code) {
+        case 11000:
+          status = HttpStatus.CONFLICT;
+          message = 'Duplicate key error';
+          error = 'Database Error';
+          details = this.formatDuplicateKeyError(exception);
+          break;
+        default:
+          status = HttpStatus.BAD_REQUEST;
+          message = 'Database operation failed';
+          error = 'Database Error';
+          break;
+      }
+    } else if (exception instanceof mongoose.Error.ValidationError) {
+      status = HttpStatus.BAD_REQUEST;
+      message = 'Validation failed';
+      error = 'Validation Error';
+      details = this.formatValidationError(exception);
+    }
+
+    // Log the error
+    this.logger.error(
+      `${request.method} ${request.url} ${status} - ${message}`,
+      exception.stack
+    );
+
+    // Format the error response
+    const errorResponse: ErrorResponse = {
+      statusCode: status,
+      message,
+      error,
+      details,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+    };
+
+    // Send the response
+    response.status(status).json(errorResponse);
   }
-}
 
-interface MongoErrorDetails {
-  index: number;
-  code: {
-    [key: string]: any;
-  };
-}
+  private formatValidationError(error: mongoose.Error.ValidationError): any {
+    const formattedErrors: Record<string, string> = {};
+    
+    Object.keys(error.errors).forEach(key => {
+      const validationError = error.errors[key];
+      formattedErrors[key] = validationError.message;
+    });
 
-export function errorMiddleware(
-  error: Error | MongoError | HttpException,
-  req: Request,
-  res: Response,
-  next: NextFunction
-) {
-  const isProd = process.env.NODE_ENV === 'production';
-  let status = HttpStatus.INTERNAL_SERVER_ERROR;
-  let message = 'Internal Server Error';
-  let code = 'INTERNAL_ERROR';
-  let details = undefined;
+    return formattedErrors;
+  }
 
-  // Log error
-  console.error('Error:', {
-    path: req.path,
-    method: req.method,
-    error: {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-    },
-  });
+  private formatDuplicateKeyError(error: MongoError): any {
+    const keyPattern = (error as any).keyPattern;
+    const keyValue = (error as any).keyValue;
 
-  // Handle different types of errors
-  if (error instanceof HttpException) {
-    status = error.getStatus();
-    const response = error.getResponse() as any;
-    message = response.message || error.message;
-    if (error instanceof AppError) {
-      code = (error as AppError).code;
-      details = (error as AppError).details;
-    }
-  } else if (error instanceof MongoError) {
-    // Handle MongoDB specific errors
-    if (error.code === 11000) {
-      status = HttpStatus.CONFLICT;
-      message = 'Duplicate key error';
-      code = 'DUPLICATE_KEY';
-      
-      // Extract the duplicate key field
-      const match = error.message.match(/index: (.+?)_/);
-      const field = match ? match[1] : 'unknown field';
-      details = { field };
-    }
-  } else if (error instanceof MongooseError.ValidationError) {
-    // Handle Mongoose validation errors
-    status = HttpStatus.BAD_REQUEST;
-    message = 'Validation Error';
-    code = 'VALIDATION_ERROR';
-    details = Object.values(error.errors).map(err => ({
-      field: err.path,
-      message: err.message,
-      type: err.kind,
-      value: err.value,
-    }));
-  } else if (error instanceof MongooseError.CastError) {
-    // Handle Mongoose cast errors
-    status = HttpStatus.BAD_REQUEST;
-    message = 'Invalid ID format';
-    code = 'INVALID_ID';
-    details = {
-      field: error.path,
-      value: error.value,
-      type: error.kind,
+    return {
+      duplicateKeys: keyPattern ? Object.keys(keyPattern) : [],
+      duplicateValues: keyValue || {},
     };
   }
-
-  // Prepare response
-  const errorResponse: any = {
-    status: status,
-    message: message,
-    code: code,
-    timestamp: new Date().toISOString(),
-    path: req.path,
-    method: req.method,
-  };
-
-  // Add details in development or if specifically allowed
-  if (!isProd || config.app.showErrorDetails) {
-    errorResponse.details = details;
-    if (!isProd) {
-      errorResponse.stack = error.stack;
-    }
-  }
-
-  // Log error to monitoring service in production
-  if (isProd && status === HttpStatus.INTERNAL_SERVER_ERROR) {
-    // Implement error reporting service integration here
-    // Example: Sentry.captureException(error);
-  }
-
-  res.status(status).json(errorResponse);
 }
 
-// Error handler for unhandled rejections and exceptions
-export function setupErrorHandlers(app: any) {
-  // Handle unhandled promise rejections
-  process.on('unhandledRejection', (reason: Error) => {
-    console.error('Unhandled Promise Rejection:', reason);
-    // Implement error reporting service integration here
-  });
-
-  // Handle uncaught exceptions
-  process.on('uncaughtException', (error: Error) => {
-    console.error('Uncaught Exception:', error);
-    // Implement error reporting service integration here
-    // Gracefully shutdown the server
-    app.close(() => {
-      process.exit(1);
-    });
-  });
-}
-
-// Utility function to wrap async route handlers
-export const asyncHandler = (fn: Function) => {
-  return (req: Request, res: Response, next: NextFunction) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
-};
-
-// HTTP error classes for common use cases
-export class BadRequestError extends AppError {
-  constructor(message = 'Bad Request', details?: any) {
-    super(message, HttpStatus.BAD_REQUEST, 'BAD_REQUEST', details);
-  }
-}
-
-export class UnauthorizedError extends AppError {
-  constructor(message = 'Unauthorized', details?: any) {
-    super(message, HttpStatus.UNAUTHORIZED, 'UNAUTHORIZED', details);
-  }
-}
-
-export class ForbiddenError extends AppError {
-  constructor(message = 'Forbidden', details?: any) {
-    super(message, HttpStatus.FORBIDDEN, 'FORBIDDEN', details);
-  }
-}
-
-export class NotFoundError extends AppError {
-  constructor(message = 'Not Found', details?: any) {
-    super(message, HttpStatus.NOT_FOUND, 'NOT_FOUND', details);
-  }
-}
-
-export class ConflictError extends AppError {
-  constructor(message = 'Conflict', details?: any) {
-    super(message, HttpStatus.CONFLICT, 'CONFLICT', details);
+export class AppError extends Error {
+  constructor(
+    public readonly message: string,
+    public readonly statusCode: number = HttpStatus.INTERNAL_SERVER_ERROR,
+    public readonly error: string = 'Application Error',
+    public readonly details?: any
+  ) {
+    super(message);
+    this.name = 'AppError';
+    Error.captureStackTrace(this, this.constructor);
   }
 }
 
 export class ValidationError extends AppError {
-  constructor(message = 'Validation Error', details?: any) {
-    super(message, HttpStatus.BAD_REQUEST, 'VALIDATION_ERROR', details);
+  constructor(message: string, details?: any) {
+    super(message, HttpStatus.BAD_REQUEST, 'Validation Error', details);
+    this.name = 'ValidationError';
+  }
+}
+
+export class AuthenticationError extends AppError {
+  constructor(message: string, details?: any) {
+    super(message, HttpStatus.UNAUTHORIZED, 'Authentication Error', details);
+    this.name = 'AuthenticationError';
+  }
+}
+
+export class AuthorizationError extends AppError {
+  constructor(message: string, details?: any) {
+    super(message, HttpStatus.FORBIDDEN, 'Authorization Error', details);
+    this.name = 'AuthorizationError';
+  }
+}
+
+export class ResourceNotFoundError extends AppError {
+  constructor(message: string, details?: any) {
+    super(message, HttpStatus.NOT_FOUND, 'Resource Not Found', details);
+    this.name = 'ResourceNotFoundError';
+  }
+}
+
+export class DuplicateResourceError extends AppError {
+  constructor(message: string, details?: any) {
+    super(message, HttpStatus.CONFLICT, 'Duplicate Resource', details);
+    this.name = 'DuplicateResourceError';
   }
 }

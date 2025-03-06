@@ -1,0 +1,44 @@
+/* Container styles */
+.calendarWrapper {
+  height: 70vh;
+  margin-bottom: 2rem;
+}
+
+/* FullCalendar custom styles */
+:global(.fc) {
+  height: 100%;
+  --fc-border-color: #ddd;
+  --fc-button-text-color: #fff;
+  --fc-button-bg-color: #1976d2;
+  --fc-button-border-color: #1976d2;
+  --fc-button-hover-bg-color: #1565c0;
+  --fc-button-hover-border-color: #1565c0;
+  --fc-button-active-bg-color: #1565c0;
+  --fc-button-active-border-color: #1565c0;
+  --fc-event-bg-color: #1976d2;
+  --fc-event-border-color: #1976d2;
+  --fc-today-bg-color: rgba(25, 118, 210, 0.1);
+}
+
+:global(.fc-toolbar-title) {
+  font-size: 1.2em !important;
+}
+
+:global(.fc-event) {
+  cursor: pointer;
+}
+
+:global(.fc-timegrid-event .fc-event-time) {
+  font-size: 0.85em;
+  margin-bottom: 0;
+}
+
+:global(.fc-theme-standard td), 
+:global(.fc-theme-standard th) {
+  border-color: var(--fc-border-color);
+}
+
+:global(.fc .fc-button) {
+  text-transform: capitalize;
+  font-weight: 500;
+}

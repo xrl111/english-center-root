@@ -1,194 +1,128 @@
-import { Box, Container, Typography, Chip, Grid, Paper, Button } from '@mui/material';
-import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
-import { useRouter } from 'next/router';
-import { useQuery } from 'react-query';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import {
+  Container,
+  Typography,
+  Box,
+  Grid,
+  Card,
+  CardContent,
+  CardMedia,
+  Button,
+} from '@mui/material';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
 import MainLayout from '../../components/Layout/MainLayout';
 import LoadingOverlay from '../../components/LoadingOverlay';
-import SEO from '../../components/SEO';
 import { newsApi } from '../../utils/api';
 import { formatDate } from '../../utils/dateUtils';
 
-export default function NewsArticle() {
+export default function NewsDetails() {
   const router = useRouter();
   const { id } = router.query;
 
   const { data: article, isLoading } = useQuery(
     ['news', id],
-    () => newsApi.getOne(id),
-    { enabled: !!id }
+    () => newsApi.getById(id),
+    {
+      enabled: !!id,
+    }
   );
 
   const { data: relatedArticles = [] } = useQuery(
     ['news', 'related', id],
-    () =>
-      newsApi.getAll({
-        category: article?.category,
-        limit: 3,
-        exclude: id,
-      }),
-    { enabled: !!article }
+    () => newsApi.getRelated(id),
+    {
+      enabled: !!id,
+    }
   );
 
   if (isLoading) return <LoadingOverlay />;
   if (!article) return null;
 
   return (
-    <>
-      <SEO
-        title={article.title}
-        description={article.content.slice(0, 160)}
-        ogImage={article.imageUrl}
-      />
-
+    <MainLayout>
       <Container maxWidth="lg" sx={{ py: 4 }}>
-        {/* Back button */}
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => router.back()}
-          sx={{ mb: 3 }}
-        >
-          Back to News
-        </Button>
-
-        <Paper elevation={2} sx={{ p: { xs: 2, sm: 4 }, mb: 4 }}>
-          {/* Article header */}
-          <Typography variant="h3" component="h1" gutterBottom>
-            {article.title}
-          </Typography>
-
-          <Box sx={{ mb: 3 }}>
-            <Typography variant="body2" color="text.secondary" gutterBottom>
-              Published on {formatDate(article.publishDate)}
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              <Chip label={article.category} color="primary" />
-              {article.tags?.map((tag) => (
-                <Chip key={tag} label={tag} variant="outlined" />
-              ))}
-            </Box>
-          </Box>
-
-          {/* Featured image */}
-          {article.imageUrl && (
-            <Box
-              sx={{
-                position: 'relative',
-                height: { xs: 200, sm: 400 },
-                mb: 4,
-                borderRadius: 1,
-                overflow: 'hidden',
-              }}
-            >
-              <Image
+        <Grid container spacing={4}>
+          <Grid item xs={12} md={8}>
+            {article.imageUrl && (
+              <Box
+                component="img"
                 src={article.imageUrl}
                 alt={article.title}
-                fill
-                style={{ objectFit: 'cover' }}
-                priority
+                sx={{
+                  width: '100%',
+                  height: 400,
+                  objectFit: 'cover',
+                  borderRadius: 2,
+                  mb: 4,
+                }}
               />
-            </Box>
-          )}
+            )}
 
-          {/* Article content */}
-          <Typography
-            variant="body1"
-            sx={{
-              fontSize: '1.1rem',
-              lineHeight: 1.8,
-              '& p': { mb: 2 },
-              '& h2': { mt: 4, mb: 2 },
-              '& h3': { mt: 3, mb: 2 },
-              '& ul, & ol': { mb: 2, pl: 4 },
-              '& li': { mb: 1 },
-              '& blockquote': {
-                borderLeft: '4px solid',
-                borderColor: 'primary.main',
-                pl: 2,
-                py: 1,
-                my: 2,
-                bgcolor: 'grey.50',
-              },
-            }}
-          >
-            {article.content}
-          </Typography>
-        </Paper>
+            <Typography variant="h3" component="h1" gutterBottom>
+              {article.title}
+            </Typography>
 
-        {/* Related articles */}
-        {relatedArticles.length > 0 && (
-          <Box>
-            <Typography variant="h5" gutterBottom sx={{ mb: 3 }}>
+            <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+              {formatDate(article.publishDate)}
+            </Typography>
+
+            <Typography variant="body1" paragraph>
+              {article.content}
+            </Typography>
+          </Grid>
+
+          <Grid item xs={12} md={4}>
+            <Typography variant="h5" gutterBottom>
               Related Articles
             </Typography>
-            <Grid container spacing={3}>
-              {relatedArticles.map((related) => (
-                <Grid item xs={12} sm={6} md={4} key={related._id}>
-                  <Link
-                    href={`/news/${related._id}`}
-                    style={{ textDecoration: 'none' }}
-                  >
-                    <Paper
-                      elevation={2}
-                      sx={{
-                        p: 2,
-                        height: '100%',
-                        transition: 'transform 0.2s',
-                        '&:hover': {
-                          transform: 'translateY(-4px)',
-                        },
-                      }}
-                    >
-                      {related.imageUrl && (
-                        <Box
-                          sx={{
-                            position: 'relative',
-                            height: 150,
-                            mb: 2,
-                            borderRadius: 1,
-                            overflow: 'hidden',
-                          }}
-                        >
-                          <Image
-                            src={related.imageUrl}
-                            alt={related.title}
-                            fill
-                            style={{ objectFit: 'cover' }}
-                          />
-                        </Box>
-                      )}
-                      <Typography
-                        variant="h6"
-                        className="line-clamp-2"
-                        gutterBottom
-                      >
-                        {related.title}
+            <Grid container spacing={2}>
+              {relatedArticles.map((relatedArticle) => (
+                <Grid item xs={12} key={relatedArticle._id}>
+                  <Card>
+                    {relatedArticle.imageUrl && (
+                      <CardMedia
+                        component="img"
+                        height="140"
+                        image={relatedArticle.imageUrl}
+                        alt={relatedArticle.title}
+                      />
+                    )}
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        {relatedArticle.title}
                       </Typography>
                       <Typography
                         variant="body2"
                         color="text.secondary"
-                        className="line-clamp-3"
                         paragraph
+                        sx={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                        }}
                       >
-                        {related.content}
+                        {relatedArticle.content}
                       </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {formatDate(related.publishDate)}
-                      </Typography>
-                    </Paper>
-                  </Link>
+                      <Button
+                        component={Link}
+                        href={`/news/${relatedArticle._id}`}
+                        size="small"
+                      >
+                        Read More
+                      </Button>
+                    </CardContent>
+                  </Card>
                 </Grid>
               ))}
             </Grid>
-          </Box>
-        )}
+          </Grid>
+        </Grid>
       </Container>
-    </>
+    </MainLayout>
   );
 }
-
-// Use MainLayout for this page
-NewsArticle.getLayout = function getLayout(page) {
-  return <MainLayout>{page}</MainLayout>;
-};

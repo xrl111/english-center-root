@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { useState } from 'react';
 import { useRouter } from 'next/router';
-import { useQuery, useQueryClient } from 'react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Container,
   Grid,

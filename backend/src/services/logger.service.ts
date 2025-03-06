@@ -1,48 +1,94 @@
 import { Injectable, LoggerService, Scope } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as winston from 'winston';
+import { Transport } from 'winston';
 import 'winston-daily-rotate-file';
-import config from '../config';
+import * as path from 'path';
+
+export type LogMetadata = Record<string, any>;
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class AppLogger implements LoggerService {
+  private logger!: winston.Logger;
   private context?: string;
-  private logger: winston.Logger;
 
-  constructor() {
-    const { combine, timestamp, printf, colorize } = winston.format;
+  constructor(private configService: ConfigService) {
+    this.initializeLogger();
+  }
 
-    // Custom log format
-    const logFormat = printf(({ level, message, timestamp, context, ...meta }) => {
-      return `${timestamp} [${level}] ${context ? `[${context}] ` : ''}${message} ${
-        Object.keys(meta).length ? JSON.stringify(meta) : ''
-      }`;
-    });
+  private initializeLogger() {
+    const isProduction = this.configService.get('NODE_ENV') === 'production';
+    const logDir = this.configService.get('LOG_DIR', 'logs');
+    const logLevel = this.configService.get('LOG_LEVEL', 'info');
 
-    // Configure logger with console and file transports
-    this.logger = winston.createLogger({
-      level: config.logging.level,
-      format: combine(
-        timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-        logFormat
-      ),
-      transports: [
-        // Console transport with colors
-        new winston.transports.Console({
-          format: combine(
-            colorize(),
-            timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-            logFormat
-          ),
-        }),
-        // Daily rotate file transport
-        new winston.transports.DailyRotateFile({
-          filename: `logs/%DATE%-${config.logging.filename}`,
+    // Create custom format
+    const customFormat = winston.format.printf(
+      ({ timestamp, level, message, metadata }) => {
+        const metaString = metadata
+          ? `\n${JSON.stringify(metadata, null, 2)}`
+          : '';
+        return `${timestamp} ${level}: ${message}${metaString}`;
+      }
+    );
+
+    // Configure transports
+    const transports: Transport[] = [
+      // Console transport
+      new winston.transports.Console({
+        level: logLevel,
+        format: winston.format.combine(
+          winston.format.colorize(),
+          winston.format.timestamp(),
+          customFormat
+        ),
+      }),
+    ];
+
+    // Add file transport in production
+    if (isProduction) {
+      const DailyRotateFile = require('winston-daily-rotate-file');
+
+      transports.push(
+        new DailyRotateFile({
+          dirname: path.join(process.cwd(), logDir),
+          filename: 'application-%DATE%.log',
           datePattern: 'YYYY-MM-DD',
           zippedArchive: true,
           maxSize: '20m',
           maxFiles: '14d',
-        }),
-      ],
+          format: winston.format.combine(
+            winston.format.timestamp(),
+            winston.format.json()
+          ),
+        }) as Transport,
+        new DailyRotateFile({
+          dirname: path.join(process.cwd(), logDir),
+          filename: 'error-%DATE%.log',
+          datePattern: 'YYYY-MM-DD',
+          zippedArchive: true,
+          maxSize: '20m',
+          maxFiles: '14d',
+          level: 'error',
+          format: winston.format.combine(
+            winston.format.timestamp(),
+            winston.format.json()
+          ),
+        }) as Transport
+      );
+    }
+
+    // Create logger instance
+    this.logger = winston.createLogger({
+      level: logLevel,
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+      ),
+      defaultMeta: {
+        environment: this.configService.get('NODE_ENV'),
+        service: 'learning-platform',
+      },
+      transports,
     });
   }
 
@@ -50,122 +96,42 @@ export class AppLogger implements LoggerService {
     this.context = context;
   }
 
-  log(message: string, ...meta: any[]) {
-    this.logger.info(message, { context: this.context, ...this.formatMeta(meta) });
-  }
-
-  error(message: string, trace?: string, ...meta: any[]) {
-    this.logger.error(message, {
-      context: this.context,
-      trace,
-      ...this.formatMeta(meta),
-    });
-  }
-
-  warn(message: string, ...meta: any[]) {
-    this.logger.warn(message, { context: this.context, ...this.formatMeta(meta) });
-  }
-
-  debug(message: string, ...meta: any[]) {
-    this.logger.debug(message, { context: this.context, ...this.formatMeta(meta) });
-  }
-
-  verbose(message: string, ...meta: any[]) {
-    this.logger.verbose(message, { context: this.context, ...this.formatMeta(meta) });
-  }
-
-  // Helper method to format metadata
-  private formatMeta(meta: any[]): object {
-    if (meta.length === 0) {
-      return {};
-    }
-
-    // If the first item is an object, use it as metadata
-    if (typeof meta[0] === 'object' && meta[0] !== null) {
-      return this.sanitizeMetadata(meta[0]);
-    }
-
-    // Otherwise, combine all items into a metadata object
-    return { data: meta };
-  }
-
-  // Sanitize metadata to prevent circular references and sensitive data
-  private sanitizeMetadata(meta: any): object {
-    const sanitized = {};
-    for (const [key, value] of Object.entries(meta)) {
-      // Skip null and undefined values
-      if (value == null) continue;
-
-      // Skip sensitive fields
-      if (this.isSensitiveField(key)) continue;
-
-      try {
-        // Test if the value can be serialized
-        JSON.stringify(value);
-        sanitized[key] = value;
-      } catch {
-        // If value can't be serialized, convert to string
-        sanitized[key] = String(value);
-      }
-    }
-    return sanitized;
-  }
-
-  // Check if a field name suggests sensitive data
-  private isSensitiveField(field: string): boolean {
-    const sensitiveFields = [
-      'password',
-      'token',
-      'secret',
-      'auth',
-      'key',
-      'credential',
-      'credit',
-      'card',
-      'ssn',
-    ];
-    return sensitiveFields.some(sensitive => 
-      field.toLowerCase().includes(sensitive)
-    );
-  }
-
-  // Helper method to log request details
-  logRequest(req: any, res: any, duration: number) {
-    const method = req.method;
-    const url = req.originalUrl || req.url;
-    const status = res.statusCode;
-    const userAgent = req.get('user-agent') || '';
-    const ip = req.ip || req.connection.remoteAddress;
-
-    this.log(`${method} ${url} ${status} ${duration}ms`, {
-      method,
-      url,
-      status,
-      duration,
-      userAgent,
-      ip,
-    });
-  }
-
-  // Helper method to log errors with stack traces
-  logError(error: Error, req?: any) {
-    const errorDetails = {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
+  private formatMessage(
+    message: string,
+    metadata?: LogMetadata
+  ): { message: string; metadata: LogMetadata } {
+    return {
+      message,
+      metadata: {
+        ...metadata,
+        context: this.context,
+        timestamp: new Date().toISOString(),
+      },
     };
+  }
 
-    if (req) {
-      errorDetails['request'] = {
-        method: req.method,
-        url: req.originalUrl || req.url,
-        body: this.sanitizeMetadata(req.body),
-        query: req.query,
-        params: req.params,
-        ip: req.ip || req.connection.remoteAddress,
-      };
-    }
+  log(message: string, metadata?: LogMetadata) {
+    const formatted = this.formatMessage(message, metadata);
+    this.logger.info(formatted.message, { metadata: formatted.metadata });
+  }
 
-    this.error('Error occurred', null, errorDetails);
+  error(message: string, metadata?: LogMetadata) {
+    const formatted = this.formatMessage(message, metadata);
+    this.logger.error(formatted.message, { metadata: formatted.metadata });
+  }
+
+  warn(message: string, metadata?: LogMetadata) {
+    const formatted = this.formatMessage(message, metadata);
+    this.logger.warn(formatted.message, { metadata: formatted.metadata });
+  }
+
+  debug(message: string, metadata?: LogMetadata) {
+    const formatted = this.formatMessage(message, metadata);
+    this.logger.debug(formatted.message, { metadata: formatted.metadata });
+  }
+
+  verbose(message: string, metadata?: LogMetadata) {
+    const formatted = this.formatMessage(message, metadata);
+    this.logger.verbose(formatted.message, { metadata: formatted.metadata });
   }
 }

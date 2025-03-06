@@ -4,6 +4,7 @@ import { join } from 'path';
 import * as sharp from 'sharp';
 import * as crypto from 'crypto';
 import config from '../config';
+import { Express } from 'express';
 
 @Injectable()
 export class FileService {
@@ -28,14 +29,20 @@ export class FileService {
     // Check file size
     if (file.size > config.upload.maxFileSize) {
       throw new BadRequestException(
-        `File size exceeds maximum limit of ${config.upload.maxFileSize / 1024 / 1024}MB`
+        `File size exceeds maximum limit of ${
+          config.upload.maxFileSize / 1024 / 1024
+        }MB`
       );
     }
 
     // Check file type
     if (!config.upload.allowedMimeTypes.includes(file.mimetype)) {
       throw new BadRequestException(
-        `File type ${file.mimetype} is not supported. Allowed types: ${config.upload.allowedMimeTypes.join(', ')}`
+        `File type ${
+          file.mimetype
+        } is not supported. Allowed types: ${config.upload.allowedMimeTypes.join(
+          ', '
+        )}`
       );
     }
   }
@@ -49,12 +56,7 @@ export class FileService {
       format?: 'jpeg' | 'png' | 'webp';
     } = {}
   ): Promise<{ filename: string; path: string }> {
-    const {
-      width,
-      height,
-      quality = 80,
-      format = 'jpeg',
-    } = options;
+    const { width, height, quality = 80, format = 'jpeg' } = options;
 
     await this.validateFile(file);
 
@@ -107,11 +109,7 @@ export class FileService {
       quality?: number;
     } = {}
   ): Promise<{ filename: string; path: string }> {
-    const {
-      width = 200,
-      height = 200,
-      quality = 70,
-    } = options;
+    const { width = 200, height = 200, quality = 70 } = options;
 
     return this.processImage(file, {
       width,
@@ -147,10 +145,7 @@ export class FileService {
       format?: 'jpeg' | 'png' | 'webp';
     } = {}
   ): Promise<Buffer> {
-    const {
-      quality = 80,
-      format = 'jpeg',
-    } = options;
+    const { quality = 80, format = 'jpeg' } = options;
 
     if (!this.isImage(file.mimetype)) {
       throw new BadRequestException('File is not an image');

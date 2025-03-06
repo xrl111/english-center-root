@@ -6,111 +6,117 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { MongoError } from 'mongodb';
 import { Error as MongooseError } from 'mongoose';
 
-interface MongoErrorExt extends MongoError {
-  keyPattern?: { [key: string]: number };
-  keyValue?: { [key: string]: any };
+interface ErrorResponse {
+  statusCode: number;
+  message: string | string[];
+  error: string;
+  path: string;
+  timestamp: string;
+  details?: any;
+}
+
+interface HttpExceptionResponse {
+  message: string | string[];
+  [key: string]: any;
 }
 
 @Catch()
-export class HttpExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(HttpExceptionFilter.name);
+export class GlobalExceptionFilter implements ExceptionFilter {
+  private readonly logger = new Logger(GlobalExceptionFilter.name);
 
-  catch(exception: any, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message = 'Internal server error';
-    let details = null;
+  private readonly mongoErrorMap: Record<number, { status: number; message: string }> = {
+    11000: { status: HttpStatus.CONFLICT, message: 'Duplicate key error' },
+  };
 
-    // Handle different types of errors
-    if (exception instanceof HttpException) {
-      status = exception.getStatus();
-      const errorResponse = exception.getResponse();
-      
-      if (typeof errorResponse === 'object') {
-        message = (errorResponse as any).message || exception.message;
-        details = (errorResponse as any).details || null;
-      } else {
-        message = errorResponse;
-      }
-    } else if (exception instanceof MongoError) {
-      // Handle MongoDB specific errors
-      if (exception.code === 11000) {
-        status = HttpStatus.CONFLICT;
-        message = 'Duplicate entry';
-        details = this.formatDuplicateKeyError(exception as MongoErrorExt);
-      }
-    } else if (exception instanceof MongooseError.ValidationError) {
-      // Handle Mongoose validation errors
-      status = HttpStatus.UNPROCESSABLE_ENTITY;
-      message = 'Validation error';
-      details = this.formatValidationError(exception);
-    }
-
-    // Add request details to error log
-    const request = ctx.getRequest();
-    const errorLog = {
-      status,
-      message,
-      details,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-      method: request.method,
-      headers: request.headers,
-      body: request.body,
-      params: request.params,
-      query: request.query,
-      stack: exception.stack,
-    };
-
-    // Log the error
-    if (status >= 500) {
-      this.logger.error(errorLog);
-    } else {
-      this.logger.warn(errorLog);
-    }
-
-    // Send response
-    response.status(status).json({
+  private createErrorResponse(
+    status: number,
+    message: string | string[],
+    path: string,
+    details?: any
+  ): ErrorResponse {
+    return {
       statusCode: status,
       message,
-      details,
+      error: HttpStatus[status] || 'Internal Server Error',
+      path,
       timestamp: new Date().toISOString(),
-      path: request.url,
-    });
+      ...(details && { details }),
+    };
   }
 
-  private formatValidationError(error: MongooseError.ValidationError) {
-    const formattedErrors = {};
-    
-    Object.keys(error.errors).forEach((key) => {
-      const err = error.errors[key];
-      formattedErrors[key] = err.message;
-    });
+  catch(error: Error, host: ArgumentsHost): void {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+    const path = request.url;
 
-    return formattedErrors;
+    let responseBody: ErrorResponse;
+
+    if (error instanceof HttpException) {
+      const status = error.getStatus();
+      const errorResponse = error.getResponse() as string | HttpExceptionResponse;
+
+      const message = typeof errorResponse === 'string'
+        ? errorResponse
+        : errorResponse.message;
+
+      responseBody = this.createErrorResponse(status, message, path);
+    } else if (error instanceof MongoError) {
+      const mongoError = this.handleMongoError(error);
+      responseBody = this.createErrorResponse(
+        mongoError.status,
+        mongoError.message,
+        path,
+        error.message
+      );
+    } else if (error instanceof MongooseError) {
+      responseBody = this.createErrorResponse(
+        HttpStatus.BAD_REQUEST,
+        'Validation error',
+        path,
+        error.message
+      );
+    } else {
+      // Unexpected errors
+      this.logger.error(error.message, error.stack);
+      responseBody = this.createErrorResponse(
+        HttpStatus.INTERNAL_SERVER_ERROR,
+        'Internal server error',
+        path
+      );
+    }
+
+    // Log the error
+    this.logger.error(
+      `${responseBody.statusCode} - ${request.method} ${path}`,
+      {
+        error: responseBody,
+        stack: error.stack,
+      }
+    );
+
+    // Send response
+    response.status(responseBody.statusCode).json(responseBody);
   }
 
-  private formatDuplicateKeyError(error: MongoErrorExt) {
-    if (error.keyValue) {
-      const field = Object.keys(error.keyValue)[0];
-      return {
-        [field]: `This ${field} is already in use`,
-      };
-    }
-    
-    if (error.keyPattern) {
-      const field = Object.keys(error.keyPattern)[0];
-      return {
-        [field]: `This ${field} is already in use`,
-      };
+  private handleMongoError(error: MongoError): { status: number; message: string } {
+    const errorCode = error.code || 0;
+    const mappedError = errorCode in this.mongoErrorMap 
+      ? this.mongoErrorMap[errorCode as keyof typeof this.mongoErrorMap]
+      : null;
+
+    if (mappedError) {
+      return mappedError;
     }
 
-    return { error: 'Duplicate entry detected' };
+    // Default error handling
+    return {
+      status: HttpStatus.BAD_REQUEST,
+      message: 'Database operation failed',
+    };
   }
 }

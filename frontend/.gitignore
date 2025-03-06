@@ -1,0 +1,97 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+.nyc_output
+
+# Next.js
+/.next/
+/out/
+/build
+.next
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+debug.log
+
+# IDE and editors
+/.idea
+/.vscode
+*.swp
+*.swo
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Temp files
+*.log
+*.tmp
+.tmp/
+*.bak
+
+# Build artifacts
+/dist
+/build
+/.build
+*.tsbuildinfo
+
+# Cache
+.cache/
+.npm
+.eslintcache
+.stylelintcache
+
+# Misc
+.DS_Store
+*.pem
+Thumbs.db
+
+# Public uploads
+/public/uploads/*
+!/public/uploads/.gitkeep
+
+# Local development overrides
+/config/local.js
+/config/local.json
+
+# Test artifacts
+/cypress/videos/
+/cypress/screenshots/
+/test-results/
+/playwright-report/
+
+# Bundle analyzer
+/analyze/
+
+# PWA files
+**/public/sw.js
+**/public/workbox-*.js
+**/public/worker-*.js
+**/public/fallback-*.js
+
+# Sentry
+.sentryclirc
+
+# Vercel
+.vercel
+
+# Turborepo
+.turbo
+
+# Custom
+todo.md
+notes.md
+*.local

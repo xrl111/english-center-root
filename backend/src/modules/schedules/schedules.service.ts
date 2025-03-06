@@ -1,130 +1,171 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Schedule, ScheduleDocument } from '../../schemas/schedule.schema';
-import { CoursesService } from '../courses/courses.service';
+import { Model, Types } from 'mongoose';
+import { Schedule, ScheduleDocument, ScheduleStatus } from '../../schemas/schedule.schema';
+import { AppLogger } from '../../services/logger.service';
+import { CreateScheduleDto, UpdateScheduleDto } from './dto/schedule.dto';
 
 @Injectable()
 export class SchedulesService {
   constructor(
     @InjectModel(Schedule.name) private scheduleModel: Model<ScheduleDocument>,
-    private readonly coursesService: CoursesService,
-  ) {}
+    private logger: AppLogger,
+  ) {
+    this.logger.setContext('SchedulesService');
+  }
 
-  async findAll(query: any): Promise<Schedule[]> {
-    const { courseId, instructor, startDate, endDate } = query;
-    const filter: any = {};
-
-    if (courseId) {
-      filter.course = courseId;
+  async create(createScheduleDto: CreateScheduleDto): Promise<ScheduleDocument> {
+    try {
+      const schedule = new this.scheduleModel(createScheduleDto);
+      return await schedule.save();
+    } catch (error) {
+      this.logger.error('Error creating schedule', error.stack);
+      throw error;
     }
+  }
 
-    if (instructor) {
-      filter.instructor = instructor;
+  async findAll(query: any = {}): Promise<ScheduleDocument[]> {
+    try {
+      return await this.scheduleModel
+        .find(query)
+        .populate('course', 'title')
+        .populate('instructor', 'username email')
+        .sort({ startDate: 1 })
+        .exec();
+    } catch (error) {
+      this.logger.error('Error finding schedules', error.stack);
+      throw error;
     }
+  }
 
-    if (startDate && endDate) {
-      filter.startTime = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      };
+  async findOne(id: string): Promise<ScheduleDocument> {
+    try {
+      const schedule = await this.scheduleModel
+        .findById(id)
+        .populate('course', 'title description')
+        .populate('instructor', 'username email')
+        .populate('attendees', 'username email')
+        .exec();
+
+      if (!schedule) {
+        throw new NotFoundException(`Schedule #${id} not found`);
+      }
+
+      return schedule;
+    } catch (error) {
+      this.logger.error(`Error finding schedule #${id}`, error.stack);
+      throw error;
     }
-
-    return this.scheduleModel
-      .find(filter)
-      .populate('course')
-      .sort({ startTime: 1 })
-      .exec();
   }
 
-  async findOne(id: string): Promise<Schedule> {
-    const schedule = await this.scheduleModel
-      .findById(id)
-      .populate('course')
-      .exec();
-    if (!schedule) {
-      throw new NotFoundException(`Schedule with ID ${id} not found`);
+  async update(id: string, updateScheduleDto: UpdateScheduleDto): Promise<ScheduleDocument> {
+    try {
+      const schedule = await this.scheduleModel
+        .findByIdAndUpdate(id, updateScheduleDto, { new: true })
+        .exec();
+
+      if (!schedule) {
+        throw new NotFoundException(`Schedule #${id} not found`);
+      }
+
+      return schedule;
+    } catch (error) {
+      this.logger.error(`Error updating schedule #${id}`, error.stack);
+      throw error;
     }
-    return schedule;
   }
 
-  async create(schedule: Schedule): Promise<Schedule> {
-    // Verify course exists
-    await this.coursesService.findOne(schedule.course.toString());
-    const newSchedule = new this.scheduleModel(schedule);
-    return newSchedule.save();
-  }
+  async remove(id: string): Promise<void> {
+    try {
+      const schedule = await this.scheduleModel.findById(id);
+      if (!schedule) {
+        throw new NotFoundException(`Schedule #${id} not found`);
+      }
 
-  async update(id: string, schedule: Schedule): Promise<Schedule> {
-    // Verify course exists
-    if (schedule.course) {
-      await this.coursesService.findOne(schedule.course.toString());
+      if (schedule.status === ScheduleStatus.CANCELLED) {
+        throw new BadRequestException('Schedule is already cancelled');
+      }
+
+      await schedule.remove();
+    } catch (error) {
+      this.logger.error(`Error removing schedule #${id}`, error.stack);
+      throw error;
     }
+  }
 
-    const updatedSchedule = await this.scheduleModel
-      .findByIdAndUpdate(id, schedule, { new: true })
-      .populate('course')
-      .exec();
-    if (!updatedSchedule) {
-      throw new NotFoundException(`Schedule with ID ${id} not found`);
+  async addAttendee(scheduleId: string, userId: string): Promise<ScheduleDocument> {
+    try {
+      const schedule = await this.findOne(scheduleId);
+      const userObjectId = new Types.ObjectId(userId);
+
+      await schedule.addAttendee(userObjectId);
+      return schedule;
+    } catch (error) {
+      this.logger.error(
+        `Error adding attendee ${userId} to schedule #${scheduleId}`,
+        error.stack
+      );
+      throw error;
     }
-    return updatedSchedule;
   }
 
-  async delete(id: string): Promise<Schedule> {
-    const deletedSchedule = await this.scheduleModel
-      .findByIdAndDelete(id)
-      .populate('course')
-      .exec();
-    if (!deletedSchedule) {
-      throw new NotFoundException(`Schedule with ID ${id} not found`);
+  async removeAttendee(scheduleId: string, userId: string): Promise<ScheduleDocument> {
+    try {
+      const schedule = await this.findOne(scheduleId);
+      const userObjectId = new Types.ObjectId(userId);
+
+      await schedule.removeAttendee(userObjectId);
+      return schedule;
+    } catch (error) {
+      this.logger.error(
+        `Error removing attendee ${userId} from schedule #${scheduleId}`,
+        error.stack
+      );
+      throw error;
     }
-    return deletedSchedule;
   }
 
-  async findByCourse(courseId: string): Promise<Schedule[]> {
-    return this.scheduleModel
-      .find({ course: courseId })
-      .populate('course')
-      .sort({ startTime: 1 })
-      .exec();
-  }
-
-  async findByDateRange(startDate: Date, endDate: Date): Promise<Schedule[]> {
-    return this.scheduleModel
-      .find({
-        startTime: { $gte: startDate },
-        endTime: { $lte: endDate },
-      })
-      .populate('course')
-      .sort({ startTime: 1 })
-      .exec();
-  }
-
-  async cancelClass(id: string): Promise<Schedule> {
-    const schedule = await this.findOne(id);
-    schedule.isCanceled = true;
-    return this.update(id, schedule);
-  }
-
-  async restoreClass(id: string): Promise<Schedule> {
-    const schedule = await this.findOne(id);
-    schedule.isCanceled = false;
-    return this.update(id, schedule);
-  }
-
-  async addAttendee(id: string, attendeeId: string): Promise<Schedule> {
-    const schedule = await this.findOne(id);
-    if (!schedule.attendees.includes(attendeeId)) {
-      schedule.attendees.push(attendeeId);
-      return this.update(id, schedule);
+  async cancel(id: string, reason: string): Promise<ScheduleDocument> {
+    try {
+      const schedule = await this.findOne(id);
+      await schedule.cancel(reason);
+      return schedule;
+    } catch (error) {
+      this.logger.error(`Error cancelling schedule #${id}`, error.stack);
+      throw error;
     }
-    return schedule;
   }
 
-  async removeAttendee(id: string, attendeeId: string): Promise<Schedule> {
-    const schedule = await this.findOne(id);
-    schedule.attendees = schedule.attendees.filter((id) => id !== attendeeId);
-    return this.update(id, schedule);
+  async findUpcoming(): Promise<ScheduleDocument[]> {
+    try {
+      return await this.scheduleModel
+        .find({
+          startDate: { $gt: new Date() },
+          status: { $ne: ScheduleStatus.CANCELLED },
+        })
+        .sort({ startDate: 1 })
+        .limit(10)
+        .populate('course', 'title')
+        .populate('instructor', 'username')
+        .exec();
+    } catch (error) {
+      this.logger.error('Error finding upcoming schedules', error.stack);
+      throw error;
+    }
+  }
+
+  async updateStatuses(): Promise<void> {
+    try {
+      const schedules = await this.scheduleModel
+        .find({
+          status: { $ne: ScheduleStatus.CANCELLED },
+        })
+        .exec();
+
+      await Promise.all(schedules.map(schedule => schedule.updateStatus()));
+    } catch (error) {
+      this.logger.error('Error updating schedule statuses', error.stack);
+      throw error;
+    }
   }
 }

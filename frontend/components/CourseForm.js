@@ -13,7 +13,7 @@ import {
 } from '@mui/material';
 import { DateTimePicker } from '@mui/x-date-pickers';
 import { addMonths } from 'date-fns';
-import { useQuery } from 'react-query';
+import { useQuery } from '@tanstack/react-query';
 import api from '../utils/api';
 
 const validationSchema = yup.object({
@@ -48,7 +48,7 @@ const levels = ['Beginner', 'Intermediate', 'Advanced', 'Expert'];
 const CourseForm = ({ initialValues, onSubmit, isSubmitting }) => {
   const [selectedInstructor, setSelectedInstructor] = useState('');
   
-  const { data: instructors = [] } = useQuery('instructors', () =>
+  const { data: instructors = [] } = useQuery(['instructors'], () =>
     api.get('/api/users?role=instructor').then(res => res.data)
   );
 

@@ -1,28 +1,58 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import compression from 'compression';
-import { AppModule } from './app/app.module';
-import { HttpExceptionFilter } from './filters/http-exception.filter';
+import { Request, Response, NextFunction } from 'express';
+import { AppModule } from './app.module';
+import { ConfigService } from '@nestjs/config';
+import { AppLogger } from './services/logger.service';
+
+interface ParsedCookies {
+  [key: string]: string;
+}
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // Create the application instance
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bufferLogs: true,
+  });
+
+  // Get config service
+  const configService = app.get(ConfigService);
+  const logger = app.get(AppLogger);
+  app.useLogger(logger);
+
+  // Set global prefix
+  app.setGlobalPrefix('api/v1');
 
   // Enable CORS
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: configService.get('CORS_ORIGIN', '*'),
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
   });
 
-  // Security middleware
-  app.use(helmet());
-  app.use(compression());
+  // Add security middleware
+  app.use(helmet() as any);
+  app.use(compression() as any);
 
-  // Global prefix
-  app.setGlobalPrefix('api');
+  // Parse cookies middleware
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.headers.cookie) {
+      const cookies = req.headers.cookie.split(';').reduce<ParsedCookies>((acc, cookie) => {
+        const [key, value] = cookie.trim().split('=');
+        acc[key] = value;
+        return acc;
+      }, {});
+      (req as any).cookies = cookies;
+    }
+    next();
+  });
 
-  // Validation
+  // Add validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -34,38 +64,63 @@ async function bootstrap() {
     }),
   );
 
-  // Global exception filter
-  app.useGlobalFilters(new HttpExceptionFilter());
+  // Setup Swagger documentation
+  if (configService.get('SWAGGER_ENABLED', true)) {
+    const config = new DocumentBuilder()
+      .setTitle('Learning Platform API')
+      .setDescription('The Learning Platform API Documentation')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
 
-  // Swagger documentation
-  const config = new DocumentBuilder()
-    .setTitle('Information Management System API')
-    .setDescription('API documentation for the IMS')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .addTag('courses', 'Course management endpoints')
-    .addTag('news', 'News management endpoints')
-    .addTag('schedules', 'Schedule management endpoints')
-    .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('api/docs', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true,
+      },
+    });
+  }
 
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true,
-    },
-    customSiteTitle: 'IMS API Documentation',
-  });
-
-  // Start server
-  const port = process.env.PORT || 3001;
+  // Start the server
+  const port = configService.get('PORT', 3000);
   await app.listen(port);
-  
-  const serverUrl = await app.getUrl();
-  console.log(`Application is running on: ${serverUrl}`);
-  console.log(`API documentation available at: ${serverUrl}/api/docs`);
+
+  logger.log(`Application is running on: http://localhost:${port}`);
+  logger.log(`Swagger documentation is available at: http://localhost:${port}/api/docs`);
+
+  // Enable shutdown hooks
+  app.enableShutdownHooks();
+
+  // Graceful shutdown
+  const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT'];
+  signals.forEach(signal => {
+    process.on(signal, async () => {
+      logger.log(`Received ${signal}, starting graceful shutdown...`);
+      
+      try {
+        await app.close();
+        logger.log('Application closed successfully');
+        process.exit(0);
+      } catch (error) {
+        logger.error('Error during graceful shutdown', error instanceof Error ? error : new Error(String(error)));
+        process.exit(1);
+      }
+    });
+  });
 }
 
-bootstrap().catch((error) => {
-  console.error('Application failed to start:', error);
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error: Error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+bootstrap().catch(err => {
+  console.error('Error during application bootstrap:', err);
   process.exit(1);
 });
