@@ -1,16 +1,15 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Connection, createConnection, ConnectOptions } from 'mongoose';
+import { Connection, createConnection, Model, FilterQuery, UpdateQuery, HydratedDocument } from 'mongoose';
 import { AppLogger } from './logger.service';
+import { BasePopulateOptions, BaseSortOptions } from '../schemas/base.schema';
+import { DatabaseMethods } from './database-methods';
+import { BaseModelFields } from '../interfaces/base-model.interface';
 
 @Injectable()
-export class DatabaseService implements OnModuleInit, OnModuleDestroy {
-  private connection: Connection;
+export class DatabaseService implements DatabaseMethods, OnModuleInit, OnModuleDestroy {
+  private connection!: Connection;
   private isConnected = false;
-  private reconnectAttempts = 0;
-  private readonly maxReconnectAttempts = 5;
-  private readonly reconnectInterval = 5000; // 5 seconds
-
   constructor(
     private readonly configService: ConfigService,
     private readonly logger: AppLogger
@@ -18,192 +17,256 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     this.logger.setContext('DatabaseService');
   }
 
-  async onModuleInit() {
+  async onModuleInit(): Promise<void> {
     await this.connect();
   }
 
-  async onModuleDestroy() {
+  async onModuleDestroy(): Promise<void> {
     await this.disconnect();
   }
 
-  async connect(): Promise<void> {
-    try {
-      if (this.isConnected) {
-        this.logger.debug('Database is already connected');
-        return;
-      }
-
-      const uri = this.configService.get<string>('MONGODB_URI');
-      if (!uri) {
-        throw new Error('MongoDB URI is not configured');
-      }
-
-      const options: ConnectOptions = {
-        autoCreate: true,
-        autoIndex: true,
-        connectTimeoutMS: 10000,
-        socketTimeoutMS: 45000,
-        serverSelectionTimeoutMS: 5000,
-        keepAlive: true,
-        maxPoolSize: 10,
-        minPoolSize: 2,
-      };
-
-      this.connection = await createConnection(uri, options);
-
-      this.connection.on('connected', () => {
-        this.isConnected = true;
-        this.reconnectAttempts = 0;
-        this.logger.log('Successfully connected to MongoDB');
-      });
-
-      this.connection.on('disconnected', () => {
-        this.isConnected = false;
-        this.logger.warn('Disconnected from MongoDB');
-        this.handleDisconnect();
-      });
-
-      this.connection.on('error', (error) => {
-        this.logger.error('MongoDB connection error', error);
-        if (this.isConnected) {
-          this.handleDisconnect();
-        }
-      });
-
-      await this.connection.asPromise();
-      this.isConnected = true;
-      this.logger.log('Successfully connected to MongoDB');
-    } catch (error) {
-      this.logger.error('Failed to connect to MongoDB', error);
-      this.handleDisconnect();
-      throw error;
-    }
-  }
-
-  private async handleDisconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      this.logger.error(
-        `Failed to reconnect after ${this.maxReconnectAttempts} attempts`
-      );
+  private async connect(): Promise<void> {
+    if (this.isConnected) {
       return;
     }
 
-    this.reconnectAttempts++;
-    this.logger.warn(
-      `Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`
-    );
-
-    setTimeout(async () => {
-      try {
-        await this.connect();
-      } catch (error) {
-        this.logger.error('Reconnection attempt failed', error);
-      }
-    }, this.reconnectInterval);
-  }
-
-  async disconnect(): Promise<void> {
-    if (this.connection) {
-      try {
-        await this.connection.close();
-        this.isConnected = false;
-        this.logger.log('Disconnected from MongoDB');
-      } catch (error) {
-        this.logger.error('Error while disconnecting from MongoDB', error);
-        throw error;
-      }
+    const uri = this.configService.get<string>('MONGODB_URI');
+    if (!uri) {
+      throw new Error('MongoDB URI is not configured');
     }
-  }
 
-  getConnection(): Connection {
-    if (!this.isConnected) {
-      throw new Error('Database is not connected');
-    }
-    return this.connection;
-  }
-
-  async healthCheck(): Promise<{ status: string; details: any }> {
     try {
-      if (!this.isConnected) {
-        return {
-          status: 'disconnected',
-          details: {
-            error: 'Database is not connected',
-            reconnectAttempts: this.reconnectAttempts,
-          },
-        };
-      }
-      
-      const ping = await this.connection.db.admin().ping();
-      return {
-        status: 'connected',
-        details: {
-          ping,
-          connectionState: this.connection.readyState,
-          models: Object.keys(this.connection.models),
-        },
-      };
-    } catch (error) {
-      this.logger.error('Database health check failed', error);
-      return {
-        status: 'error',
-        details: {
-          error: error.message,
-          connectionState: this.connection?.readyState,
-        },
-      };
-    }
-  }
-
-  async getStats(): Promise<{
-    status: string;
-    collections: number;
-    documents: number;
-    dataSize: number;
-    storageSize: number;
-    indexes: number;
-    indexSize: number;
-  }> {
-    try {
-      if (!this.isConnected) {
-        throw new Error('Database is not connected');
-      }
-
-      const stats = await this.connection.db.stats();
-      return {
-        status: 'connected',
-        collections: stats.collections,
-        documents: stats.objects,
-        dataSize: stats.dataSize,
-        storageSize: stats.storageSize,
-        indexes: stats.indexes,
-        indexSize: stats.indexSize,
-      };
-    } catch (error) {
-      this.logger.error('Failed to get database stats', error);
+      this.connection = await createConnection(uri);
+      this.isConnected = true;
+      this.logger.log('Connected to MongoDB');
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Failed to connect to MongoDB', { error: errorMsg });
       throw error;
     }
   }
 
-  async dropDatabase(): Promise<void> {
-    if (this.configService.get('NODE_ENV') === 'production') {
-      throw new Error('Cannot drop database in production environment');
+  private async disconnect(): Promise<void> {
+    if (!this.connection) {
+      return;
     }
 
     try {
-      await this.connection.db.dropDatabase();
-      this.logger.warn('Database dropped successfully');
-    } catch (error) {
-      this.logger.error('Failed to drop database', error);
+      await this.connection.close();
+      this.isConnected = false;
+      this.logger.log('Disconnected from MongoDB');
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error disconnecting from MongoDB', { error: errorMsg });
       throw error;
     }
   }
 
-  isConnectedToDatabase(): boolean {
-    return this.isConnected;
+  public async findOne<T extends BaseModelFields>(
+    model: Model<T>,
+    filter: FilterQuery<T>,
+    options?: {
+      populate?: BasePopulateOptions[];
+      select?: string;
+      lean?: boolean;
+    }
+  ): Promise<HydratedDocument<T> | null> {
+    try {
+      const query = model.findOne(filter);
+      const opts = options || {};
+
+      if (opts.populate) {
+        query.populate(opts.populate);
+      }
+      if (opts.select) {
+        query.select(opts.select);
+      }
+      if (opts.lean) {
+        query.lean<HydratedDocument<T>>();
+      }
+
+      return query.exec();
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error in findOne operation', { error: errorMsg });
+      throw error;
+    }
   }
 
-  getReconnectAttempts(): number {
-    return this.reconnectAttempts;
+  public async find<T extends BaseModelFields>(
+    model: Model<T>,
+    filter: FilterQuery<T>,
+    options?: {
+      populate?: BasePopulateOptions[];
+      select?: string;
+      sort?: BaseSortOptions;
+      limit?: number;
+      skip?: number;
+      lean?: boolean;
+    }
+  ): Promise<HydratedDocument<T>[]> {
+    try {
+      const query = model.find(filter);
+      const opts = options || {};
+
+      if (opts.populate) {
+        query.populate(opts.populate);
+      }
+      if (opts.select) {
+        query.select(opts.select);
+      }
+      if (opts.sort) {
+        query.sort(opts.sort);
+      }
+      if (opts.limit) {
+        query.limit(opts.limit);
+      }
+      if (opts.skip) {
+        query.skip(opts.skip);
+      }
+      if (opts.lean) {
+        query.lean<HydratedDocument<T>>();
+      }
+
+      return query.exec();
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error in find operation', { error: errorMsg });
+      throw error;
+    }
+  }
+
+  public async create<T extends BaseModelFields>(
+    model: Model<T>,
+    data: Partial<T>,
+    options?: { userId?: string }
+  ): Promise<HydratedDocument<T>> {
+    try {
+      const opts = options || {};
+      if (opts.userId) {
+        (data as any).createdBy = opts.userId;
+      }
+      const doc = new model(data);
+      return doc.save();
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error in create operation', { error: errorMsg });
+      throw error;
+    }
+  }
+
+  public async update<T extends BaseModelFields>(
+    model: Model<T>,
+    filter: FilterQuery<T>,
+    update: UpdateQuery<T>,
+    options?: {
+      userId?: string;
+      new?: boolean;
+      runValidators?: boolean;
+      populate?: BasePopulateOptions[];
+    }
+  ): Promise<HydratedDocument<T> | null> {
+    try {
+      const opts = options || {};
+      if (opts.userId) {
+        if (!update.$set) update.$set = {};
+        (update.$set as any).updatedBy = opts.userId;
+      }
+
+      const query = model.findOneAndUpdate(filter, update, {
+        new: opts.new ?? true,
+        runValidators: opts.runValidators ?? true,
+      });
+
+      if (opts.populate) {
+        query.populate(opts.populate);
+      }
+
+      return query.exec();
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error in update operation', { error: errorMsg });
+      throw error;
+    }
+  }
+
+  public async delete<T extends BaseModelFields>(
+    model: Model<T>,
+    filter: FilterQuery<T>,
+    options?: { permanent?: boolean; userId?: string }
+  ): Promise<boolean> {
+    try {
+      const opts = options || {};
+      if (opts.permanent) {
+        const result = await model.deleteOne(filter).exec();
+        return result.deletedCount > 0;
+      }
+
+      const update: UpdateQuery<T> = {
+        $set: {
+          isDeleted: true,
+          deletedAt: new Date(),
+          ...(opts.userId && { deletedBy: opts.userId })
+        }
+      };
+
+      const result = await model.updateOne(filter, update).exec();
+      return result.modifiedCount > 0;
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error in delete operation', { error: errorMsg });
+      throw error;
+    }
+  }
+
+  public async restore<T extends BaseModelFields>(
+    model: Model<T>,
+    filter: FilterQuery<T>,
+    options?: { userId?: string }
+  ): Promise<boolean> {
+    try {
+      const opts = options || {};
+      const update: UpdateQuery<T> = {
+        $set: {
+          isDeleted: false,
+          ...(opts.userId && { updatedBy: opts.userId })
+        },
+        $unset: { deletedAt: 1, deletedBy: 1 }
+      };
+
+      const result = await model.updateOne(filter, update).exec();
+      return result.modifiedCount > 0;
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error in restore operation', { error: errorMsg });
+      throw error;
+    }
+  }
+
+  public async count<T extends BaseModelFields>(
+    model: Model<T>,
+    filter?: FilterQuery<T>
+  ): Promise<number> {
+    try {
+      return model.countDocuments(filter || {}).exec();
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error in count operation', { error: errorMsg });
+      throw error;
+    }
+  }
+
+  public async exists<T extends BaseModelFields>(
+    model: Model<T>,
+    filter: FilterQuery<T>
+  ): Promise<boolean> {
+    try {
+      const count = await model.countDocuments(filter).limit(1).exec();
+      return count > 0;
+    } catch (error: unknown) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      this.logger.error('Error in exists operation', { error: errorMsg });
+      throw error;
+    }
   }
 }

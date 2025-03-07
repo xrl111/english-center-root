@@ -5,6 +5,8 @@ import { ExampleService } from './example.service';
 import { Example, ExampleSchema } from './schemas/example.schema';
 import { AuthModule } from '../auth/auth.module';
 import { ConfigModule } from '@nestjs/config';
+import { DatabaseService } from '../../services/database.service';
+import { AppLogger } from '../../services/logger.service';
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { ConfigModule } from '@nestjs/config';
   controllers: [ExampleController],
   providers: [
     ExampleService,
+    DatabaseService,
+    AppLogger,
     {
       provide: 'EXAMPLE_MODEL_FEATURES',
       useValue: {

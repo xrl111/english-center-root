@@ -34,7 +34,7 @@ function validatePayload(payload: any): payload is PerformancePayload {
   if (typeof payload.timestamp !== 'number') return false;
   
   // Validate metrics values
-  for (const [key, value] of Object.entries(payload.metrics)) {
+  for (const [, value] of Object.entries(payload.metrics)) {
     if (typeof value !== 'number' || !isFinite(value)) return false;
   }
 
@@ -85,16 +85,25 @@ export default async function handler(
     const recordedMetrics: string[] = [];
     for (const [name, value] of Object.entries(payload.metrics)) {
       try {
+        const labels: Record<string, string | number> = {
+          userAgent: req.headers['user-agent'] || 'unknown'
+        };
+
+        if (payload.connection?.effectiveType) {
+          labels.effectiveType = payload.connection.effectiveType;
+        }
+        if (payload.connection?.rtt) {
+          labels.rtt = payload.connection.rtt;
+        }
+        if (payload.connection?.downlink) {
+          labels.downlink = payload.connection.downlink;
+        }
+
         recordPerformanceMetric(
           name,
           value,
           payload.pathname,
-          {
-            userAgent: req.headers['user-agent'] || 'unknown',
-            effectiveType: payload.connection?.effectiveType,
-            rtt: payload.connection?.rtt,
-            downlink: payload.connection?.downlink,
-          }
+          labels
         );
         recordedMetrics.push(name);
       } catch (error) {

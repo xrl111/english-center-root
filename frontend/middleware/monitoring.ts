@@ -104,9 +104,13 @@ export async function middleware(request: NextRequest) {
     response.headers.set('X-Response-Time', `${Math.round(duration)}ms`);
 
     return response;
-  } catch (error) {
-    // Track error
-    trackError(error);
+  } catch (error: unknown) {
+    // Track error if it's an Error object
+    if (error instanceof Error) {
+      trackError(error);
+    } else {
+      trackError(new Error(error ? String(error) : 'Unknown error'));
+    }
 
     // Record error metrics
     httpRequestsTotal.inc({

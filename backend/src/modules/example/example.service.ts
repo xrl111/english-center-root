@@ -2,6 +2,9 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery } from 'mongoose';
 import { BaseService } from '../../services/base.service';
+import { DatabaseService } from '../../services/database.service';
+import { AppLogger } from '../../services/logger.service';
+import { BaseDocument, BasePopulateOptions, BaseSortOptions } from '../../schemas/base.schema';
 import {
   Example,
   ExampleDocument,
@@ -20,9 +23,11 @@ import {
 @Injectable()
 export class ExampleService extends BaseService<ExampleDocument> {
   constructor(
-    @InjectModel(Example.name) private readonly exampleModel: ExampleModel
+    @InjectModel(Example.name) private readonly exampleModel: ExampleModel,
+    databaseService: DatabaseService,
+    logger: AppLogger
   ) {
-    super(exampleModel, Example.name);
+    super(exampleModel, databaseService, logger, Example.name);
   }
 
   async create(input: CreateExampleInput): Promise<ExampleDocument> {
@@ -65,7 +70,23 @@ export class ExampleService extends BaseService<ExampleDocument> {
     return this.exampleModel.findByName(name);
   }
 
-  async findAll(options: ExampleQueryOptions = {}): Promise<PaginatedResult<ExampleDocument>> {
+  // Override base findAll to match parent signature
+  async findAll(
+    filter: FilterQuery<ExampleDocument> = {},
+    options: {
+      populate?: BasePopulateOptions[];
+      select?: string;
+      sort?: BaseSortOptions;
+      limit?: number;
+      skip?: number;
+      lean?: boolean;
+    } = {}
+  ): Promise<ExampleDocument[]> {
+    return super.findAll(filter, options);
+  }
+
+  // Add new method for paginated results
+  async findAllPaginated(options: ExampleQueryOptions = {}): Promise<PaginatedResult<ExampleDocument>> {
     const { isActive, name, pagination: paginationOpts } = options;
     const pagination = paginationOpts || normalizePagination();
     const query: FilterQuery<ExampleDocument> = {};

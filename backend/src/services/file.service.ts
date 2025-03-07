@@ -1,10 +1,24 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import * as sharp from 'sharp';
+import sharp from 'sharp';
 import * as crypto from 'crypto';
 import config from '../config';
-import { Express } from 'express';
+
+interface MulterFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  destination?: string;
+  filename?: string;
+  path?: string;
+  buffer: Buffer;
+}
+
+// Re-export to specify proper return type
+type SharpMetadata = ReturnType<typeof sharp.prototype.metadata>;
 
 @Injectable()
 export class FileService {
@@ -21,7 +35,7 @@ export class FileService {
     }
   }
 
-  async validateFile(file: Express.Multer.File): Promise<void> {
+  async validateFile(file: MulterFile): Promise<void> {
     if (!file) {
       throw new BadRequestException('No file provided');
     }
@@ -48,7 +62,7 @@ export class FileService {
   }
 
   async processImage(
-    file: Express.Multer.File,
+    file: MulterFile,
     options: {
       width?: number;
       height?: number;
@@ -102,7 +116,7 @@ export class FileService {
   }
 
   async generateThumbnail(
-    file: Express.Multer.File,
+    file: MulterFile,
     options: {
       width?: number;
       height?: number;
@@ -124,14 +138,14 @@ export class FileService {
   }
 
   getFileUrl(filename: string): string {
-    return `${config.app.apiPrefix}/uploads/${filename}`;
+    return `${config.apiPrefix}/uploads/${filename}`;
   }
 
   isImage(mimetype: string): boolean {
     return mimetype.startsWith('image/');
   }
 
-  async getImageMetadata(file: Express.Multer.File): Promise<sharp.Metadata> {
+  async getImageMetadata(file: MulterFile): Promise<SharpMetadata> {
     if (!this.isImage(file.mimetype)) {
       throw new BadRequestException('File is not an image');
     }
@@ -139,7 +153,7 @@ export class FileService {
   }
 
   async optimizeImage(
-    file: Express.Multer.File,
+    file: MulterFile,
     options: {
       quality?: number;
       format?: 'jpeg' | 'png' | 'webp';

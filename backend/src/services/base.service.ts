@@ -68,7 +68,8 @@ export abstract class BaseService<T extends BaseDocument> {
     try {
       return await this.databaseService.create(this.model, data, options);
     } catch (error) {
-      this.logger.error(`Error creating ${this.modelName}`, error.stack);
+      const errorMessage = error instanceof Error ? error.stack : String(error);
+      this.logger.error(`Error creating ${this.modelName}`, { error: errorMessage });
       throw error;
     }
   }
@@ -182,7 +183,8 @@ export abstract class BaseService<T extends BaseDocument> {
       const result = await this.model.updateMany(filter, update).exec();
       return result.modifiedCount;
     } catch (error) {
-      this.logger.error(`Error updating many ${this.modelName}s`, error.stack);
+      const errorMessage = error instanceof Error ? error.stack : String(error);
+      this.logger.error(`Error updating many ${this.modelName}s`, { error: errorMessage });
       throw error;
     }
   }
@@ -211,7 +213,8 @@ export abstract class BaseService<T extends BaseDocument> {
       const result = await this.model.updateMany(filter, update).exec();
       return result.modifiedCount;
     } catch (error) {
-      this.logger.error(`Error deleting many ${this.modelName}s`, error.stack);
+      const errorMessage = error instanceof Error ? error.stack : String(error);
+      this.logger.error(`Error deleting many ${this.modelName}s`, { error: errorMessage });
       throw error;
     }
   }

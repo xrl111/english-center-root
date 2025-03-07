@@ -12,7 +12,7 @@ export interface IExampleVirtuals {
   displayName: string;
 }
 
-export type ExampleDocument = Example & Document & IExampleVirtuals;
+export type ExampleDocument = Example & Document & IExampleVirtuals & ExampleInstanceMethods;
 
 @Schema(createSchemaForClass(Example))
 export class Example extends BaseSchema implements IExample {

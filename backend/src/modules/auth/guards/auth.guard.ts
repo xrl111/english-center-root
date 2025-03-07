@@ -7,6 +7,20 @@ import {
 import { Observable } from 'rxjs';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { UserRole } from '../types/roles';
+
+// Minimal user info needed for authentication
+export interface UserInfo {
+  id: string;
+  email: string;
+  role: UserRole;
+}
+
+interface JwtPayload extends UserInfo {
+  id: string;
+  email: string;
+  role: UserRole;
+}
 
 interface JwtError extends Error {
   name: 'JsonWebTokenError' | 'TokenExpiredError' | string;
@@ -42,10 +56,14 @@ export class AuthGuard implements CanActivate {
 
       const payload = this.jwtService.verify(token, {
         secret: this.configService.get<string>('JWT_SECRET'),
-      });
+      }) as JwtPayload;
 
-      // Attach user to request
-      request.user = payload;
+      // Attach user payload to request
+      request.user = {
+        id: payload.id,
+        email: payload.email,
+        role: payload.role
+      };
       return true;
     } catch (error) {
       const jwtError = error as JwtError;
@@ -65,12 +83,7 @@ export class AuthGuard implements CanActivate {
 declare global {
   namespace Express {
     interface Request {
-      user?: {
-        id: string;
-        email: string;
-        role: string;
-        [key: string]: any;
-      };
+      user?: UserInfo;
     }
   }
 }
