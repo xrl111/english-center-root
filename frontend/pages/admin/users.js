@@ -17,11 +17,8 @@ import {
   FormControl,
   Box,
 } from '@mui/material';
-import {
-  Block as BlockIcon,
-  CheckCircle as CheckCircleIcon,
-} from '@mui/icons-material';
-import AdminLayout from '../../components/AdminLayout';
+import { Block as BlockIcon, CheckCircle as CheckCircleIcon } from '@mui/icons-material';
+import AdminLayout from '../../components/Layout/AdminLayout';
 import useNotification from '../../hooks/useNotification';
 import ConfirmDialog from '../../components/ConfirmDialog';
 import LoadingOverlay from '../../components/LoadingOverlay';
@@ -58,7 +55,7 @@ export default function UsersPage() {
         showNotification('User role updated successfully', 'success');
         queryClient.invalidateQueries(['users']);
       },
-      onError: (error) => {
+      onError: error => {
         showNotification(error.message, 'error');
       },
     }
@@ -81,7 +78,7 @@ export default function UsersPage() {
         showNotification('User status updated successfully', 'success');
         queryClient.invalidateQueries(['users']);
       },
-      onError: (error) => {
+      onError: error => {
         showNotification(error.message, 'error');
       },
     }
@@ -96,15 +93,12 @@ export default function UsersPage() {
     });
   };
 
-  const handleToggleStatus = (user) => {
+  const handleToggleStatus = user => {
     setConfirmAction({
       type: 'status',
       title: `${user.isActive ? 'Deactivate' : 'Activate'} User`,
-      message: `Are you sure you want to ${
-        user.isActive ? 'deactivate' : 'activate'
-      } this user?`,
-      action: () =>
-        toggleStatusMutation.mutate({ userId: user._id, isActive: !user.isActive }),
+      message: `Are you sure you want to ${user.isActive ? 'deactivate' : 'activate'} this user?`,
+      action: () => toggleStatusMutation.mutate({ userId: user._id, isActive: !user.isActive }),
     });
   };
 
@@ -130,7 +124,7 @@ export default function UsersPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {users?.map((user) => (
+              {users?.map(user => (
                 <TableRow key={user._id}>
                   <TableCell>{user.username}</TableCell>
                   <TableCell>{user.email}</TableCell>
@@ -138,7 +132,7 @@ export default function UsersPage() {
                     <FormControl size="small">
                       <Select
                         value={user.role}
-                        onChange={(e) => handleRoleChange(user._id, e.target.value)}
+                        onChange={e => handleRoleChange(user._id, e.target.value)}
                       >
                         <MenuItem value="student">Student</MenuItem>
                         <MenuItem value="instructor">Instructor</MenuItem>

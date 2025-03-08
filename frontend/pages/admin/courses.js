@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import AdminLayout from '../../components/AdminLayout';
+import AdminLayout from '../../components/Layout/AdminLayout';
 import useNotification from '../../hooks/useNotification';
 import FormDialog from '../../components/FormDialog';
 import CourseForm from '../../components/CourseForm';
@@ -25,50 +25,44 @@ export default function CoursesAdminPage() {
       queryClient.invalidateQueries(['courses']);
       handleCloseForm();
     },
-    onError: (error) => {
+    onError: error => {
       showNotification(error.message, 'error');
     },
   });
 
-  const updateMutation = useMutation(
-    (data) => courseApi.update(selectedCourse._id, data),
-    {
-      onSuccess: () => {
-        showNotification('Course updated successfully', 'success');
-        queryClient.invalidateQueries(['courses']);
-        handleCloseForm();
-      },
-      onError: (error) => {
-        showNotification(error.message, 'error');
-      },
-    }
-  );
+  const updateMutation = useMutation(data => courseApi.update(selectedCourse._id, data), {
+    onSuccess: () => {
+      showNotification('Course updated successfully', 'success');
+      queryClient.invalidateQueries(['courses']);
+      handleCloseForm();
+    },
+    onError: error => {
+      showNotification(error.message, 'error');
+    },
+  });
 
-  const deleteMutation = useMutation(
-    () => courseApi.delete(selectedCourse._id),
-    {
-      onSuccess: () => {
-        showNotification('Course deleted successfully', 'success');
-        queryClient.invalidateQueries(['courses']);
-        setIsDeleteDialogOpen(false);
-      },
-      onError: (error) => {
-        showNotification(error.message, 'error');
-      },
-    }
-  );
+  const deleteMutation = useMutation(() => courseApi.delete(selectedCourse._id), {
+    onSuccess: () => {
+      showNotification('Course deleted successfully', 'success');
+      queryClient.invalidateQueries(['courses']);
+      setIsDeleteDialogOpen(false);
+    },
+    onError: error => {
+      showNotification(error.message, 'error');
+    },
+  });
 
   const handleAddNew = () => {
     setSelectedCourse(null);
     setIsFormOpen(true);
   };
 
-  const handleEdit = (course) => {
+  const handleEdit = course => {
     setSelectedCourse(course);
     setIsFormOpen(true);
   };
 
-  const handleDelete = (course) => {
+  const handleDelete = course => {
     setSelectedCourse(course);
     setIsDeleteDialogOpen(true);
   };
@@ -96,7 +90,7 @@ export default function CoursesAdminPage() {
       >
         <CourseForm
           initialValues={selectedCourse}
-          onSubmit={(values) => {
+          onSubmit={values => {
             if (selectedCourse) {
               updateMutation.mutate(values);
             } else {

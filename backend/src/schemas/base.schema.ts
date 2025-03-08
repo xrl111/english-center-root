@@ -7,6 +7,7 @@ export interface BaseDocumentFields {
   createdAt: Date;
   updatedAt: Date;
   isDeleted?: boolean;
+  isActive: boolean;
 }
 
 @Schema({ timestamps: true })
@@ -25,6 +26,9 @@ export class BaseSchema implements Omit<BaseDocumentFields, '_id' | 'id'> {
 
   @Prop({ type: Boolean, default: false })
   isDeleted?: boolean;
+
+  @Prop({ type: Boolean, default: true })
+  isActive!: boolean;
 }
 
 export type BaseDocument = Document & BaseDocumentFields;
@@ -102,9 +106,10 @@ export const addBaseSchema = (schema: any): void => {
     createdAt: { type: Date },
     updatedAt: { type: Date },
     isDeleted: { type: Boolean, default: false },
+    isActive: { type: Boolean, default: true },
   });
 
-  schema.virtual('id').get(function(this: Document) {
+  schema.virtual('id').get(function (this: Document) {
     return this._id.toHexString();
   });
 

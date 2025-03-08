@@ -55,11 +55,13 @@ export class UsersController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Get all users' })
   @ApiResponse({ status: HttpStatus.OK, type: PaginatedUsersResponseDto })
-  async findAll(@Query() query: UserQueryDto): Promise<PaginatedUsersResponseDto> {
+  async findAll(
+    @Query() query: UserQueryDto
+  ): Promise<PaginatedUsersResponseDto> {
     const result = await this.usersService.findAll(query);
     return {
       ...result,
-      items: result.items.map(user => this.mapToResponseDto(user)),
+      items: result.items.map((user) => this.mapToResponseDto(user)),
     };
   }
 
@@ -169,7 +171,10 @@ export class UsersController {
     @CurrentUser() user: User,
     @Body() changePasswordDto: ChangePasswordDto
   ): Promise<void> {
-    await this.usersService.updatePassword(user.id, changePasswordDto.newPassword);
+    await this.usersService.updatePassword(
+      user.id,
+      changePasswordDto.newPassword
+    );
   }
 
   private mapToResponseDto(user: User): UserResponseDto {
@@ -181,7 +186,6 @@ export class UsersController {
       role: user.role,
       firstName: user.firstName,
       lastName: user.lastName,
-      isEmailVerified: user.isEmailVerified,
       isActive: user.isActive,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,

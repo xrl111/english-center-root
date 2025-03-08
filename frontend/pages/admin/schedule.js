@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import AdminLayout from '../../components/AdminLayout';
+import AdminLayout from '../../components/Layout/AdminLayout';
 import useNotification from '../../hooks/useNotification';
 import FormDialog from '../../components/FormDialog';
 import ScheduleForm from '../../components/ScheduleForm';
@@ -33,41 +33,35 @@ export default function ScheduleAdminPage() {
       queryClient.invalidateQueries(['schedules']);
       handleCloseForm();
     },
-    onError: (error) => {
+    onError: error => {
       showNotification(error.message, 'error');
     },
   });
 
-  const updateMutation = useMutation(
-    (data) => scheduleApi.update(selectedSchedule._id, data),
-    {
-      onSuccess: () => {
-        showNotification('Schedule updated successfully', 'success');
-        queryClient.invalidateQueries(['schedules']);
-        handleCloseForm();
-      },
-      onError: (error) => {
-        showNotification(error.message, 'error');
-      },
-    }
-  );
+  const updateMutation = useMutation(data => scheduleApi.update(selectedSchedule._id, data), {
+    onSuccess: () => {
+      showNotification('Schedule updated successfully', 'success');
+      queryClient.invalidateQueries(['schedules']);
+      handleCloseForm();
+    },
+    onError: error => {
+      showNotification(error.message, 'error');
+    },
+  });
 
-  const deleteMutation = useMutation(
-    () => scheduleApi.delete(selectedSchedule._id),
-    {
-      onSuccess: () => {
-        showNotification('Schedule deleted successfully', 'success');
-        queryClient.invalidateQueries(['schedules']);
-        setIsDeleteDialogOpen(false);
-      },
-      onError: (error) => {
-        showNotification(error.message, 'error');
-      },
-    }
-  );
+  const deleteMutation = useMutation(() => scheduleApi.delete(selectedSchedule._id), {
+    onSuccess: () => {
+      showNotification('Schedule deleted successfully', 'success');
+      queryClient.invalidateQueries(['schedules']);
+      setIsDeleteDialogOpen(false);
+    },
+    onError: error => {
+      showNotification(error.message, 'error');
+    },
+  });
 
   const toggleCancelMutation = useMutation(
-    (schedule) =>
+    schedule =>
       scheduleApi.update(schedule._id, {
         isCanceled: !schedule.isCanceled,
       }),
@@ -79,7 +73,7 @@ export default function ScheduleAdminPage() {
         );
         queryClient.invalidateQueries(['schedules']);
       },
-      onError: (error) => {
+      onError: error => {
         showNotification(error.message, 'error');
       },
     }
@@ -90,17 +84,17 @@ export default function ScheduleAdminPage() {
     setIsFormOpen(true);
   };
 
-  const handleEdit = (schedule) => {
+  const handleEdit = schedule => {
     setSelectedSchedule(schedule);
     setIsFormOpen(true);
   };
 
-  const handleDelete = (schedule) => {
+  const handleDelete = schedule => {
     setSelectedSchedule(schedule);
     setIsDeleteDialogOpen(true);
   };
 
-  const handleToggleCancel = (schedule) => {
+  const handleToggleCancel = schedule => {
     toggleCancelMutation.mutate(schedule);
   };
 
@@ -129,7 +123,7 @@ export default function ScheduleAdminPage() {
         <ScheduleForm
           courses={courses}
           initialValues={selectedSchedule}
-          onSubmit={(values) => {
+          onSubmit={values => {
             if (selectedSchedule) {
               updateMutation.mutate(values);
             } else {

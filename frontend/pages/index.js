@@ -27,13 +27,12 @@ import { formatDate } from '../utils/dateUtils';
 
 export default function HomePage() {
   const { data: featuredCourses, isLoading: isLoadingCourses } = useQuery(
-    'featured-courses',
+    ['featured-courses'],
     () => courseApi.getAll({ featured: true, limit: 3 })
   );
 
-  const { data: latestNews, isLoading: isLoadingNews } = useQuery(
-    'latest-news',
-    () => newsApi.getAll({ limit: 4, isPublished: true })
+  const { data: latestNews, isLoading: isLoadingNews } = useQuery(['latest-news'], () =>
+    newsApi.getAll({ limit: 4, isPublished: true })
   );
 
   const stats = [
@@ -61,7 +60,8 @@ export default function HomePage() {
       {/* Hero Section */}
       <Box
         sx={{
-          background: theme => `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
+          background: theme =>
+            `linear-gradient(45deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
           color: 'white',
           py: { xs: 8, md: 12 },
           mb: 6,
@@ -81,8 +81,8 @@ export default function HomePage() {
                 Master English with Expert Guidance
               </Typography>
               <Typography variant="h5" sx={{ mb: 4, opacity: 0.9 }}>
-                Join our comprehensive English learning programs designed to help you
-                achieve fluency and confidence.
+                Join our comprehensive English learning programs designed to help you achieve
+                fluency and confidence.
               </Typography>
               <Stack direction="row" spacing={2}>
                 <Button
@@ -144,11 +144,7 @@ export default function HomePage() {
       <Container maxWidth="lg" sx={{ mb: 8 }}>
         <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h4">Featured Courses</Typography>
-          <Button
-            component={Link}
-            href="/courses"
-            endIcon={<ArrowForwardIcon />}
-          >
+          <Button component={Link} href="/courses" endIcon={<ArrowForwardIcon />}>
             View All Courses
           </Button>
         </Box>
@@ -156,7 +152,7 @@ export default function HomePage() {
           <LoadingOverlay />
         ) : (
           <Grid container spacing={3}>
-            {featuredCourses?.map((course) => (
+            {featuredCourses?.map(course => (
               <Grid item xs={12} sm={6} md={4} key={course._id}>
                 <Card
                   sx={{
@@ -203,13 +199,11 @@ export default function HomePage() {
       {/* Latest News Section */}
       <Box sx={{ bgcolor: 'background.paper', py: 8 }}>
         <Container maxWidth="lg">
-          <Box sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box
+            sx={{ mb: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
             <Typography variant="h4">Latest News</Typography>
-            <Button
-              component={Link}
-              href="/news"
-              endIcon={<ArrowForwardIcon />}
-            >
+            <Button component={Link} href="/news" endIcon={<ArrowForwardIcon />}>
               View All News
             </Button>
           </Box>
@@ -217,7 +211,7 @@ export default function HomePage() {
             <LoadingOverlay />
           ) : (
             <Grid container spacing={3}>
-              {latestNews?.map((article) => (
+              {latestNews?.map(article => (
                 <Grid item xs={12} sm={6} md={3} key={article._id}>
                   <Card>
                     {article.imageUrl && (
@@ -229,12 +223,7 @@ export default function HomePage() {
                       />
                     )}
                     <CardContent>
-                      <Typography
-                        gutterBottom
-                        variant="h6"
-                        component="h3"
-                        className="line-clamp-2"
-                      >
+                      <Typography gutterBottom variant="h6" component="h3" className="line-clamp-2">
                         {article.title}
                       </Typography>
                       <Typography
@@ -245,19 +234,11 @@ export default function HomePage() {
                       >
                         {article.content}
                       </Typography>
-                      <Stack
-                        direction="row"
-                        justifyContent="space-between"
-                        alignItems="center"
-                      >
+                      <Stack direction="row" justifyContent="space-between" alignItems="center">
                         <Typography variant="caption" color="text.secondary">
                           {formatDate(article.publishDate)}
                         </Typography>
-                        <Button
-                          component={Link}
-                          href={`/news/${article._id}`}
-                          size="small"
-                        >
+                        <Button component={Link} href={`/news/${article._id}`} size="small">
                           Read More
                         </Button>
                       </Stack>

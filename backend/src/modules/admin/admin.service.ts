@@ -7,6 +7,21 @@ import { Schedule, ScheduleDocument } from '../../schemas/schedule.schema';
 import { User, UserDocument } from '../../schemas/user.schema';
 import { AppLogger } from '../../services/logger.service';
 
+interface LogMetadata {
+  error: string;
+  stack?: string;
+}
+
+function formatError(error: unknown): LogMetadata {
+  if (error instanceof Error) {
+    return {
+      error: error.message,
+      stack: error.stack,
+    };
+  }
+  return { error: String(error) };
+}
+
 @Injectable()
 export class AdminService {
   constructor(
@@ -14,7 +29,7 @@ export class AdminService {
     @InjectModel(News.name) private newsModel: Model<NewsDocument>,
     @InjectModel(Schedule.name) private scheduleModel: Model<ScheduleDocument>,
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    private logger: AppLogger,
+    private logger: AppLogger
   ) {
     this.logger.setContext('AdminService');
   }
@@ -62,7 +77,7 @@ export class AdminService {
         },
       };
     } catch (error) {
-      this.logger.error('Error getting dashboard stats', error.stack);
+      this.logger.error('Error getting dashboard stats', formatError(error));
       throw error;
     }
   }
@@ -75,10 +90,7 @@ export class AdminService {
           .sort({ updatedAt: -1 })
           .limit(5)
           .populate('instructor', 'username email'),
-        this.newsModel
-          .find()
-          .sort({ updatedAt: -1 })
-          .limit(5),
+        this.newsModel.find().sort({ updatedAt: -1 }).limit(5),
         this.scheduleModel
           .find({ startDate: { $gte: new Date() } })
           .sort({ startDate: 1 })
@@ -92,7 +104,7 @@ export class AdminService {
         recentSchedules,
       };
     } catch (error) {
-      this.logger.error('Error getting recent activity', error.stack);
+      this.logger.error('Error getting recent activity', formatError(error));
       throw error;
     }
   }
@@ -112,7 +124,7 @@ export class AdminService {
         },
       };
     } catch (error) {
-      this.logger.error('Error checking system health', error.stack);
+      this.logger.error('Error checking system health', formatError(error));
       throw error;
     }
   }
@@ -131,41 +143,70 @@ export class AdminService {
         latency: await this.measureDbLatency(),
       };
     } catch (error) {
+      const errorInfo = formatError(error);
+      this.logger.error('Database health check failed', errorInfo);
       return {
         status: 'unhealthy',
-        error: error.message,
+        error: errorInfo.error,
       };
     }
   }
 
   private async checkServicesHealth() {
-    const services = {
-      fileUpload: await this.checkFileUploadService(),
-      email: await this.checkEmailService(),
-      cache: await this.checkCacheService(),
-    };
-
-    return services;
+    try {
+      const services = {
+        fileUpload: await this.checkFileUploadService(),
+        email: await this.checkEmailService(),
+        cache: await this.checkCacheService(),
+      };
+      return services;
+    } catch (error) {
+      this.logger.error('Error checking services health', formatError(error));
+      throw error;
+    }
   }
 
   private async measureDbLatency(): Promise<number> {
-    const start = Date.now();
-    await this.courseModel.findOne();
-    return Date.now() - start;
+    try {
+      const start = Date.now();
+      await this.courseModel.findOne();
+      return Date.now() - start;
+    } catch (error) {
+      this.logger.error('Error measuring database latency', formatError(error));
+      throw error;
+    }
   }
 
   private async checkFileUploadService() {
-    // Implement file upload service health check
-    return { status: 'healthy' };
+    try {
+      // Implement file upload service health check
+      return { status: 'healthy' };
+    } catch (error) {
+      this.logger.error(
+        'Error checking file upload service',
+        formatError(error)
+      );
+      return { status: 'unhealthy', error: formatError(error).error };
+    }
   }
 
   private async checkEmailService() {
-    // Implement email service health check
-    return { status: 'healthy' };
+    try {
+      // Implement email service health check
+      return { status: 'healthy' };
+    } catch (error) {
+      this.logger.error('Error checking email service', formatError(error));
+      return { status: 'unhealthy', error: formatError(error).error };
+    }
   }
 
   private async checkCacheService() {
-    // Implement cache service health check
-    return { status: 'healthy' };
+    try {
+      // Implement cache service health check
+      return { status: 'healthy' };
+    } catch (error) {
+      this.logger.error('Error checking cache service', formatError(error));
+      return { status: 'unhealthy', error: formatError(error).error };
+    }
   }
 }

@@ -1,7 +1,27 @@
-import { Model, FilterQuery, UpdateQuery, QueryOptions, Document } from 'mongoose';
+import {
+  Model,
+  FilterQuery,
+  UpdateQuery,
+  QueryOptions,
+  Document,
+} from 'mongoose';
 import { NotFoundException } from '@nestjs/common';
-import { FilterOptions, PaginatedResponse, ServiceOptions } from '../utils/types';
-import { AppLogger } from '../services/logger.service';
+import {
+  FilterOptions,
+  PaginatedResponse,
+  ServiceOptions,
+} from '../utils/types';
+import { AppLogger, LogMetadata } from '../services/logger.service';
+
+function formatError(error: unknown): LogMetadata {
+  if (error instanceof Error) {
+    return {
+      error: error.message,
+      stack: error.stack,
+    };
+  }
+  return { error: String(error) };
+}
 
 export abstract class BaseRepository<T extends Document> {
   protected constructor(
@@ -18,7 +38,7 @@ export abstract class BaseRepository<T extends Document> {
 
       if (options?.populate) {
         if (Array.isArray(options.populate)) {
-          options.populate.forEach(path => query.populate(path));
+          options.populate.forEach((path) => query.populate(path));
         } else {
           query.populate(options.populate);
         }
@@ -34,18 +54,24 @@ export abstract class BaseRepository<T extends Document> {
 
       return await query.exec();
     } catch (error) {
-      this.logger.error(`Error finding ${this.modelName} by id: ${id}`, error);
+      this.logger.error(
+        `Error finding ${this.modelName} by id: ${id}`,
+        formatError(error)
+      );
       throw error;
     }
   }
 
-  async findOne(filter: FilterQuery<T>, options?: ServiceOptions): Promise<T | null> {
+  async findOne(
+    filter: FilterQuery<T>,
+    options?: ServiceOptions
+  ): Promise<T | null> {
     try {
       const query = this.model.findOne(filter);
 
       if (options?.populate) {
         if (Array.isArray(options.populate)) {
-          options.populate.forEach(path => query.populate(path));
+          options.populate.forEach((path) => query.populate(path));
         } else {
           query.populate(options.populate);
         }
@@ -61,7 +87,7 @@ export abstract class BaseRepository<T extends Document> {
 
       return await query.exec();
     } catch (error) {
-      this.logger.error(`Error finding ${this.modelName}`, error);
+      this.logger.error(`Error finding ${this.modelName}`, formatError(error));
       throw error;
     }
   }
@@ -86,7 +112,7 @@ export abstract class BaseRepository<T extends Document> {
 
       if (populate) {
         if (Array.isArray(populate)) {
-          populate.forEach(path => query.populate(path));
+          populate.forEach((path) => query.populate(path));
         } else {
           query.populate(populate);
         }
@@ -113,7 +139,7 @@ export abstract class BaseRepository<T extends Document> {
         pages: Math.ceil(total / limit),
       };
     } catch (error) {
-      this.logger.error(`Error finding ${this.modelName}s`, error);
+      this.logger.error(`Error finding ${this.modelName}s`, formatError(error));
       throw error;
     }
   }
@@ -123,12 +149,16 @@ export abstract class BaseRepository<T extends Document> {
       const entity = new this.model(data);
       return await entity.save();
     } catch (error) {
-      this.logger.error(`Error creating ${this.modelName}`, error);
+      this.logger.error(`Error creating ${this.modelName}`, formatError(error));
       throw error;
     }
   }
 
-  async update(id: string, updateData: UpdateQuery<T>, options?: QueryOptions): Promise<T> {
+  async update(
+    id: string,
+    updateData: UpdateQuery<T>,
+    options?: QueryOptions
+  ): Promise<T> {
     try {
       const entity = await this.model
         .findByIdAndUpdate(id, updateData, { new: true, ...options })
@@ -140,7 +170,10 @@ export abstract class BaseRepository<T extends Document> {
 
       return entity;
     } catch (error) {
-      this.logger.error(`Error updating ${this.modelName} ${id}`, error);
+      this.logger.error(
+        `Error updating ${this.modelName} ${id}`,
+        formatError(error)
+      );
       throw error;
     }
   }
@@ -153,7 +186,10 @@ export abstract class BaseRepository<T extends Document> {
       }
       return true;
     } catch (error) {
-      this.logger.error(`Error deleting ${this.modelName} ${id}`, error);
+      this.logger.error(
+        `Error deleting ${this.modelName} ${id}`,
+        formatError(error)
+      );
       throw error;
     }
   }
@@ -179,7 +215,10 @@ export abstract class BaseRepository<T extends Document> {
 
       return entity;
     } catch (error) {
-      this.logger.error(`Error soft deleting ${this.modelName} ${id}`, error);
+      this.logger.error(
+        `Error soft deleting ${this.modelName} ${id}`,
+        formatError(error)
+      );
       throw error;
     }
   }
@@ -205,7 +244,10 @@ export abstract class BaseRepository<T extends Document> {
 
       return entity;
     } catch (error) {
-      this.logger.error(`Error restoring ${this.modelName} ${id}`, error);
+      this.logger.error(
+        `Error restoring ${this.modelName} ${id}`,
+        formatError(error)
+      );
       throw error;
     }
   }
@@ -215,7 +257,10 @@ export abstract class BaseRepository<T extends Document> {
       const result = await this.model.exists(filter);
       return result !== null;
     } catch (error) {
-      this.logger.error(`Error checking ${this.modelName} existence`, error);
+      this.logger.error(
+        `Error checking ${this.modelName} existence`,
+        formatError(error)
+      );
       throw error;
     }
   }
@@ -224,7 +269,10 @@ export abstract class BaseRepository<T extends Document> {
     try {
       return await this.model.countDocuments(filter).exec();
     } catch (error) {
-      this.logger.error(`Error counting ${this.modelName}s`, error);
+      this.logger.error(
+        `Error counting ${this.modelName}s`,
+        formatError(error)
+      );
       throw error;
     }
   }

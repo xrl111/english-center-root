@@ -4,208 +4,145 @@ import {
   Drawer,
   AppBar,
   Toolbar,
-  List,
   Typography,
-  Divider,
-  IconButton,
+  List,
   ListItem,
   ListItemIcon,
   ListItemText,
-  Avatar,
-  Menu,
-  MenuItem,
-  useTheme,
-  useMediaQuery,
-  Container,
+  IconButton,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  ChevronLeft as ChevronLeftIcon,
   Dashboard as DashboardIcon,
+  People as PeopleIcon,
   School as SchoolIcon,
-  Event as EventIcon,
   Article as ArticleIcon,
-  Group as GroupIcon,
-  Person as PersonIcon,
+  Event as EventIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useAuth } from '../../contexts/AuthContext';
+import { withAuth } from '../withAuth';
+import { authApi } from '../../utils/api/auth';
 
 const drawerWidth = 240;
 
-const menuItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, href: '/admin' },
-  { text: 'Courses', icon: <SchoolIcon />, href: '/admin/courses' },
-  { text: 'Schedule', icon: <EventIcon />, href: '/admin/schedule' },
-  { text: 'News', icon: <ArticleIcon />, href: '/admin/news' },
-  { text: 'Users', icon: <GroupIcon />, href: '/admin/users' },
-];
-
 const AdminLayout = ({ children }) => {
-  const [open, setOpen] = useState(true);
-  const [anchorEl, setAnchorEl] = useState(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
 
   const handleDrawerToggle = () => {
-    setOpen(!open);
-  };
-
-  const handleMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
+    setMobileOpen(!mobileOpen);
   };
 
   const handleLogout = async () => {
-    handleMenuClose();
-    await logout();
-    router.push('/auth/login');
+    try {
+      await authApi.logout();
+      logout();
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
 
+  const menuItems = [
+    { text: 'Dashboard', icon: <DashboardIcon />, href: '/admin' },
+    { text: 'Students', icon: <PeopleIcon />, href: '/admin/users' },
+    { text: 'Courses', icon: <SchoolIcon />, href: '/admin/courses' },
+    { text: 'News', icon: <ArticleIcon />, href: '/admin/news' },
+    { text: 'Schedule', icon: <EventIcon />, href: '/admin/schedule' },
+  ];
+
   const drawer = (
-    <>
-      <Toolbar
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          px: [1],
-        }}
-      >
-        <IconButton onClick={handleDrawerToggle}>
-          <ChevronLeftIcon />
-        </IconButton>
+    <Box>
+      <Toolbar>
+        <Typography variant="h6" noWrap component="div">
+          Admin Panel
+        </Typography>
       </Toolbar>
-      <Divider />
       <List>
-        {menuItems.map((item) => (
+        {menuItems.map(item => (
           <ListItem
             button
             key={item.text}
             component={Link}
             href={item.href}
             selected={router.pathname === item.href}
-            sx={{
-              '&.Mui-selected': {
-                bgcolor: 'primary.light',
-                '&:hover': {
-                  bgcolor: 'primary.light',
-                },
-              },
-            }}
           >
-            <ListItemIcon
-              sx={{
-                color: router.pathname === item.href ? 'primary.main' : 'inherit',
-              }}
-            >
-              {item.icon}
-            </ListItemIcon>
+            <ListItemIcon>{item.icon}</ListItemIcon>
             <ListItemText primary={item.text} />
           </ListItem>
         ))}
+        <ListItem button onClick={handleLogout}>
+          <ListItemIcon>
+            <LogoutIcon />
+          </ListItemIcon>
+          <ListItemText primary="Logout" />
+        </ListItem>
       </List>
-    </>
+    </Box>
   );
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex' }}>
       <AppBar
         position="fixed"
         sx={{
-          zIndex: (theme) => theme.zIndex.drawer + 1,
-          bgcolor: 'background.paper',
-          color: 'text.primary',
+          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          ml: { sm: `${drawerWidth}px` },
         }}
       >
-        <Container maxWidth="lg">
-          <Toolbar disableGutters>
-            <IconButton
-              color="inherit"
-              aria-label="open drawer"
-              edge="start"
-              onClick={handleDrawerToggle}
-              sx={{ mr: 2 }}
-            >
-              <MenuIcon />
-            </IconButton>
-            <Typography
-              variant="h6"
-              noWrap
-              component={Link}
-              href="/admin"
-              sx={{
-                flexGrow: 1,
-                textDecoration: 'none',
-                color: 'inherit',
-              }}
-            >
-              Admin Dashboard
-            </Typography>
-            <IconButton
-              onClick={handleMenuOpen}
-              sx={{
-                p: 0,
-                ml: 2,
-              }}
-            >
-              <Avatar alt={user?.username}>
-                {user?.username?.[0]?.toUpperCase()}
-              </Avatar>
-            </IconButton>
-            <Menu
-              anchorEl={anchorEl}
-              open={Boolean(anchorEl)}
-              onClose={handleMenuClose}
-              onClick={handleMenuClose}
-            >
-              <MenuItem component={Link} href="/profile">
-                <ListItemIcon>
-                  <PersonIcon fontSize="small" />
-                </ListItemIcon>
-                Profile
-              </MenuItem>
-              <MenuItem onClick={handleLogout}>
-                <ListItemIcon>
-                  <LogoutIcon fontSize="small" />
-                </ListItemIcon>
-                Logout
-              </MenuItem>
-            </Menu>
-          </Toolbar>
-        </Container>
+        <Toolbar>
+          <IconButton
+            color="inherit"
+            edge="start"
+            onClick={handleDrawerToggle}
+            sx={{ mr: 2, display: { sm: 'none' } }}
+          >
+            <MenuIcon />
+          </IconButton>
+          <Typography variant="h6" noWrap component="div">
+            Language School Management
+          </Typography>
+        </Toolbar>
       </AppBar>
-      <Drawer
-        variant={isMobile ? 'temporary' : 'permanent'}
-        open={isMobile ? open : true}
-        onClose={isMobile ? handleDrawerToggle : undefined}
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          [`& .MuiDrawer-paper`]: {
-            width: drawerWidth,
-            boxSizing: 'border-box',
-          },
-        }}
-      >
-        {drawer}
-      </Drawer>
+
+      <Box component="nav" sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}>
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={handleDrawerToggle}
+          ModalProps={{
+            keepMounted: true, // Better open performance on mobile.
+          }}
+          sx={{
+            display: { xs: 'block', sm: 'none' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+          }}
+        >
+          {drawer}
+        </Drawer>
+        <Drawer
+          variant="permanent"
+          sx={{
+            display: { xs: 'none', sm: 'block' },
+            '& .MuiDrawer-paper': { boxSizing: 'border-box', width: drawerWidth },
+          }}
+          open
+        >
+          {drawer}
+        </Drawer>
+      </Box>
+
       <Box
         component="main"
         sx={{
           flexGrow: 1,
-          pt: { xs: 2, sm: 3 },
-          px: { xs: 2, sm: 3 },
-          mt: 8,
-          backgroundColor: 'background.default',
-          minHeight: '100vh',
+          p: 3,
+          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          mt: '64px',
         }}
       >
         {children}
@@ -214,4 +151,4 @@ const AdminLayout = ({ children }) => {
   );
 };
 
-export default AdminLayout;
+export default withAuth(AdminLayout, { requireAdmin: true });

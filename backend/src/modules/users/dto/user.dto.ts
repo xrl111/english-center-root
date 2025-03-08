@@ -38,7 +38,8 @@ export class CreateUserDto {
   @MinLength(3)
   @MaxLength(20)
   @Matches(/^[a-zA-Z0-9_-]*$/, {
-    message: 'Username can only contain letters, numbers, underscores and hyphens',
+    message:
+      'Username can only contain letters, numbers, underscores and hyphens',
   })
   username!: string;
 
@@ -109,6 +110,15 @@ export class UpdateUserDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Array of refresh tokens',
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  refreshTokens?: string[];
 }
 
 export class ChangePasswordDto {
@@ -181,6 +191,11 @@ export class UserQueryDto {
   @IsOptional()
   @Type(() => Number)
   limit?: number;
+
+  @ApiPropertyOptional({ description: 'Custom MongoDB filter' })
+  @IsOptional()
+  @IsObject()
+  filter?: Record<string, any>;
 }
 
 export class UserPreferencesDto {
@@ -230,9 +245,6 @@ export class UserResponseDto {
   lastName?: string;
 
   @ApiProperty()
-  isEmailVerified!: boolean;
-
-  @ApiProperty()
   isActive!: boolean;
 
   @ApiProperty()
@@ -241,9 +253,9 @@ export class UserResponseDto {
   @ApiProperty()
   updatedAt!: Date;
 
-  @ApiPropertyOptional({ type: [String] })
-  permissions?: string[];
+  @ApiProperty({ type: [String] })
+  permissions!: string[];
 
-  @ApiPropertyOptional()
-  preferences?: UserPreferencesDto;
+  @ApiProperty({ type: Object })
+  preferences!: Record<string, any>;
 }

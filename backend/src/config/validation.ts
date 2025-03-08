@@ -1,5 +1,15 @@
 import { plainToClass } from 'class-transformer';
-import { IsString, IsInt, IsEnum, validateSync, IsOptional, Min, Max, IsBoolean, ValidationError } from 'class-validator';
+import {
+  IsString,
+  IsInt,
+  IsEnum,
+  validateSync,
+  IsOptional,
+  Min,
+  Max,
+  IsBoolean,
+  ValidationError,
+} from 'class-validator';
 
 enum Environment {
   Development = 'development',
@@ -9,35 +19,35 @@ enum Environment {
 
 class EnvironmentVariables {
   @IsEnum(Environment)
-  NODE_ENV: Environment;
+  NODE_ENV!: Environment;
 
   @IsInt()
   @Min(1)
   @Max(65535)
-  PORT: number;
+  PORT!: number;
 
   @IsString()
-  MONGODB_URI: string;
+  MONGODB_URI!: string;
 
   @IsString()
-  JWT_SECRET: string;
+  JWT_SECRET!: string;
 
   @IsInt()
   @Min(60)
-  JWT_EXPIRATION: number;
+  JWT_EXPIRATION!: number;
 
   @IsString()
-  JWT_REFRESH_SECRET: string;
+  JWT_REFRESH_SECRET!: string;
 
   @IsInt()
   @Min(60)
-  JWT_REFRESH_EXPIRATION: number;
+  JWT_REFRESH_EXPIRATION!: number;
 
   @IsString()
-  ADMIN_EMAIL: string;
+  ADMIN_EMAIL!: string;
 
   @IsString()
-  ADMIN_PASSWORD: string;
+  ADMIN_PASSWORD!: string;
 
   @IsString()
   @IsOptional()
@@ -130,7 +140,7 @@ export function validate(config: Record<string, unknown>) {
 
 function formatValidationErrors(errors: ValidationError[]): string {
   return errors
-    .map(error => {
+    .map((error) => {
       if (error.constraints) {
         return Object.values(error.constraints).join(', ');
       }
@@ -165,7 +175,10 @@ export function getMergedConfig(): EnvironmentVariables {
     JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET || '',
     ADMIN_EMAIL: process.env.ADMIN_EMAIL || '',
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || '',
-    JWT_EXPIRATION: parseEnvValue(process.env.JWT_EXPIRATION, defaultConfig.JWT_EXPIRATION),
+    JWT_EXPIRATION: parseEnvValue(
+      process.env.JWT_EXPIRATION,
+      defaultConfig.JWT_EXPIRATION
+    ),
     JWT_REFRESH_EXPIRATION: parseEnvValue(
       process.env.JWT_REFRESH_EXPIRATION,
       defaultConfig.JWT_REFRESH_EXPIRATION
@@ -195,7 +208,9 @@ export function getMergedConfig(): EnvironmentVariables {
     ADMIN_USERNAME: process.env.ADMIN_USERNAME,
     CORS_ORIGIN: process.env.CORS_ORIGIN,
     SMTP_HOST: process.env.SMTP_HOST,
-    SMTP_PORT: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : undefined,
+    SMTP_PORT: process.env.SMTP_PORT
+      ? parseInt(process.env.SMTP_PORT)
+      : undefined,
     SMTP_USER: process.env.SMTP_USER,
     SMTP_PASS: process.env.SMTP_PASS,
     SMTP_FROM: process.env.SMTP_FROM,

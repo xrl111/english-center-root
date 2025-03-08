@@ -12,6 +12,7 @@ import { CoursesModule } from './modules/courses/courses.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 
 import { AppLogger } from './services/logger.service';
+import { LoggerModule } from './services/logger.module';
 import { DatabaseService } from './services/database.service';
 import { GlobalExceptionFilter } from './middleware/error.middleware';
 import { LoggingInterceptor } from './interceptors/logging.interceptor';
@@ -47,6 +48,9 @@ import { validate } from './config/validation';
       inject: [ConfigService],
     }),
 
+    // Logger module
+    LoggerModule,
+
     // Feature modules
     UsersModule,
     AuthModule,
@@ -55,12 +59,6 @@ import { validate } from './config/validation';
     SchedulesModule,
   ],
   providers: [
-    // Global logger service
-    {
-      provide: AppLogger,
-      useClass: AppLogger,
-    },
-
     // Database service
     {
       provide: DatabaseService,

@@ -73,12 +73,14 @@ export const ResourceOwnershipRules = {
     conditions: {
       custom: (user: BaseUser, resource: Resource): boolean => {
         if (!resource.userId && !resource.course) return false;
-        
-        const isOwner = resource.userId?.toString() === user.id;
-        const isInstructor = resource.course && user.instructingCourses.some(courseId => 
-          courseId.toString() === resource.course?.toString()
+
+        const isOwner = resource.userId?.toString() === user.id || false;
+        const courseId = resource.course?.toString();
+        const isInstructor = Boolean(
+          courseId &&
+            user.instructingCourses.some((id) => id.toString() === courseId)
         );
-        return isOwner || (isInstructor ?? false);
+        return isOwner || isInstructor;
       },
     },
   }),
@@ -94,11 +96,13 @@ export const ResourceOwnershipRules = {
       custom: (user: BaseUser, resource: Resource): boolean => {
         if (!resource.userId && !resource.course) return false;
 
-        const isOwner = resource.userId?.toString() === user.id;
-        const isEnrolled = resource.course && user.enrolledCourses.some(courseId => 
-          courseId.toString() === resource.course?.toString()
+        const isOwner = resource.userId?.toString() === user.id || false;
+        const courseId = resource.course?.toString();
+        const isEnrolled = Boolean(
+          courseId &&
+            user.enrolledCourses.some((id) => id.toString() === courseId)
         );
-        return isOwner || (isEnrolled ?? false);
+        return isOwner || isEnrolled;
       },
     },
   }),
@@ -108,10 +112,7 @@ export const ResourceOwnershipRules = {
    * @param resource The resource type
    * @param check Custom check function
    */
-  Custom: (
-    resource: string,
-    check: CustomAccessCheck
-  ): ResourceOwnership => ({
+  Custom: (resource: string, check: CustomAccessCheck): ResourceOwnership => ({
     resource,
     action: 'read',
     conditions: {

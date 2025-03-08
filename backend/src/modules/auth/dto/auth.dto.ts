@@ -10,13 +10,16 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../types/roles';
-import { PASSWORD_VALIDATION, USERNAME_VALIDATION } from '../auth.module';
+import {
+  PASSWORD_VALIDATION,
+  USERNAME_VALIDATION,
+} from '../constants/validation';
 
 export class RegisterDto {
   @ApiProperty({ description: 'User email address' })
   @IsEmail()
   @IsNotEmpty()
-  email: string;
+  email!: string;
 
   @ApiProperty({ description: 'User password' })
   @IsString()
@@ -25,7 +28,7 @@ export class RegisterDto {
   @Matches(PASSWORD_VALIDATION.PATTERN, {
     message: PASSWORD_VALIDATION.MESSAGE,
   })
-  password: string;
+  password!: string;
 
   @ApiProperty({ description: 'Username' })
   @IsString()
@@ -34,7 +37,7 @@ export class RegisterDto {
   @Matches(USERNAME_VALIDATION.PATTERN, {
     message: USERNAME_VALIDATION.MESSAGE,
   })
-  username: string;
+  username!: string;
 
   @ApiPropertyOptional({ description: 'First name' })
   @IsOptional()
@@ -58,26 +61,26 @@ export class LoginDto {
   @ApiProperty({ description: 'User email address' })
   @IsEmail()
   @IsNotEmpty()
-  email: string;
+  email!: string;
 
   @ApiProperty({ description: 'User password' })
   @IsString()
   @IsNotEmpty()
-  password: string;
+  password!: string;
 }
 
 export class RefreshTokenDto {
   @ApiProperty({ description: 'Refresh token' })
   @IsString()
   @IsNotEmpty()
-  refreshToken: string;
+  refreshToken!: string;
 }
 
 export class ChangePasswordDto {
   @ApiProperty({ description: 'Current password' })
   @IsString()
   @IsNotEmpty()
-  currentPassword: string;
+  currentPassword!: string;
 
   @ApiProperty({ description: 'New password' })
   @IsString()
@@ -86,21 +89,21 @@ export class ChangePasswordDto {
   @Matches(PASSWORD_VALIDATION.PATTERN, {
     message: PASSWORD_VALIDATION.MESSAGE,
   })
-  newPassword: string;
+  newPassword!: string;
 }
 
 export class RequestPasswordResetDto {
   @ApiProperty({ description: 'User email address' })
   @IsEmail()
   @IsNotEmpty()
-  email: string;
+  email!: string;
 }
 
 export class ResetPasswordDto {
   @ApiProperty({ description: 'Password reset token' })
   @IsString()
   @IsNotEmpty()
-  token: string;
+  token!: string;
 
   @ApiProperty({ description: 'New password' })
   @IsString()
@@ -109,48 +112,41 @@ export class ResetPasswordDto {
   @Matches(PASSWORD_VALIDATION.PATTERN, {
     message: PASSWORD_VALIDATION.MESSAGE,
   })
-  newPassword: string;
-}
-
-export class VerifyEmailDto {
-  @ApiProperty({ description: 'Email verification token' })
-  @IsString()
-  @IsNotEmpty()
-  token: string;
+  newPassword!: string;
 }
 
 export class LogoutDto {
   @ApiProperty({ description: 'Refresh token to invalidate' })
   @IsString()
   @IsNotEmpty()
-  refreshToken: string;
+  refreshToken!: string;
 }
 
 export class TokenResponse {
   @ApiProperty()
-  accessToken: string;
+  accessToken!: string;
 
   @ApiProperty()
-  refreshToken: string;
+  refreshToken!: string;
 
   @ApiProperty()
-  expiresIn: number;
+  expiresIn!: number;
 }
 
 export class MessageResponse {
   @ApiProperty()
-  message: string;
+  message!: string;
 }
 
 export class ProfileResponse {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  email: string;
+  email!: string;
 
   @ApiProperty()
-  username: string;
+  username!: string;
 
   @ApiProperty({ required: false })
   firstName?: string;
@@ -159,10 +155,7 @@ export class ProfileResponse {
   lastName?: string;
 
   @ApiProperty({ enum: UserRole })
-  role: UserRole;
-
-  @ApiProperty()
-  isEmailVerified: boolean;
+  role!: UserRole;
 
   @ApiProperty()
   lastLogin?: Date;

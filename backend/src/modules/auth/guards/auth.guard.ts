@@ -8,15 +8,9 @@ import { Observable } from 'rxjs';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UserRole } from '../types/roles';
+import { UserPayload } from '../types/common';
 
-// Minimal user info needed for authentication
-export interface UserInfo {
-  id: string;
-  email: string;
-  role: UserRole;
-}
-
-interface JwtPayload extends UserInfo {
+interface JwtPayload extends UserPayload {
   id: string;
   email: string;
   role: UserRole;
@@ -30,11 +24,11 @@ interface JwtError extends Error {
 export class AuthGuard implements CanActivate {
   constructor(
     private readonly jwtService: JwtService,
-    private readonly configService: ConfigService,
+    private readonly configService: ConfigService
   ) {}
 
   canActivate(
-    context: ExecutionContext,
+    context: ExecutionContext
   ): boolean | Promise<boolean> | Observable<boolean> {
     const request = context.switchToHttp().getRequest();
     const authHeader = request.headers.authorization;
@@ -62,7 +56,7 @@ export class AuthGuard implements CanActivate {
       request.user = {
         id: payload.id,
         email: payload.email,
-        role: payload.role
+        role: payload.role,
       };
       return true;
     } catch (error) {
@@ -75,15 +69,6 @@ export class AuthGuard implements CanActivate {
         throw new UnauthorizedException('Token has expired');
       }
       throw new UnauthorizedException('Invalid authorization');
-    }
-  }
-}
-
-// Types for request augmentation
-declare global {
-  namespace Express {
-    interface Request {
-      user?: UserInfo;
     }
   }
 }

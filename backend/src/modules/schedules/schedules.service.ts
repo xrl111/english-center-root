@@ -1,25 +1,45 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Schedule, ScheduleDocument, ScheduleStatus } from '../../schemas/schedule.schema';
-import { AppLogger } from '../../services/logger.service';
+import {
+  Schedule,
+  ScheduleDocument,
+  ScheduleStatus,
+} from '../../schemas/schedule.schema';
+import { AppLogger, LogMetadata } from '../../services/logger.service';
 import { CreateScheduleDto, UpdateScheduleDto } from './dto/schedule.dto';
+
+function formatError(error: unknown): LogMetadata {
+  if (error instanceof Error) {
+    return {
+      error: error.message,
+      stack: error.stack,
+    };
+  }
+  return { error: String(error) };
+}
 
 @Injectable()
 export class SchedulesService {
   constructor(
     @InjectModel(Schedule.name) private scheduleModel: Model<ScheduleDocument>,
-    private logger: AppLogger,
+    private readonly logger: AppLogger
   ) {
     this.logger.setContext('SchedulesService');
   }
 
-  async create(createScheduleDto: CreateScheduleDto): Promise<ScheduleDocument> {
+  async create(
+    createScheduleDto: CreateScheduleDto
+  ): Promise<ScheduleDocument> {
     try {
       const schedule = new this.scheduleModel(createScheduleDto);
       return await schedule.save();
     } catch (error) {
-      this.logger.error('Error creating schedule', error.stack);
+      this.logger.error('Error creating schedule', formatError(error));
       throw error;
     }
   }
@@ -33,7 +53,7 @@ export class SchedulesService {
         .sort({ startDate: 1 })
         .exec();
     } catch (error) {
-      this.logger.error('Error finding schedules', error.stack);
+      this.logger.error('Error finding schedules', formatError(error));
       throw error;
     }
   }
@@ -53,12 +73,15 @@ export class SchedulesService {
 
       return schedule;
     } catch (error) {
-      this.logger.error(`Error finding schedule #${id}`, error.stack);
+      this.logger.error(`Error finding schedule ${id}`, formatError(error));
       throw error;
     }
   }
 
-  async update(id: string, updateScheduleDto: UpdateScheduleDto): Promise<ScheduleDocument> {
+  async update(
+    id: string,
+    updateScheduleDto: UpdateScheduleDto
+  ): Promise<ScheduleDocument> {
     try {
       const schedule = await this.scheduleModel
         .findByIdAndUpdate(id, updateScheduleDto, { new: true })
@@ -70,7 +93,7 @@ export class SchedulesService {
 
       return schedule;
     } catch (error) {
-      this.logger.error(`Error updating schedule #${id}`, error.stack);
+      this.logger.error(`Error updating schedule ${id}`, formatError(error));
       throw error;
     }
   }
@@ -86,14 +109,17 @@ export class SchedulesService {
         throw new BadRequestException('Schedule is already cancelled');
       }
 
-      await schedule.remove();
+      await schedule.deleteOne();
     } catch (error) {
-      this.logger.error(`Error removing schedule #${id}`, error.stack);
+      this.logger.error(`Error removing schedule ${id}`, formatError(error));
       throw error;
     }
   }
 
-  async addAttendee(scheduleId: string, userId: string): Promise<ScheduleDocument> {
+  async addAttendee(
+    scheduleId: string,
+    userId: string
+  ): Promise<ScheduleDocument> {
     try {
       const schedule = await this.findOne(scheduleId);
       const userObjectId = new Types.ObjectId(userId);
@@ -102,14 +128,17 @@ export class SchedulesService {
       return schedule;
     } catch (error) {
       this.logger.error(
-        `Error adding attendee ${userId} to schedule #${scheduleId}`,
-        error.stack
+        `Error adding attendee ${userId} to schedule ${scheduleId}`,
+        formatError(error)
       );
       throw error;
     }
   }
 
-  async removeAttendee(scheduleId: string, userId: string): Promise<ScheduleDocument> {
+  async removeAttendee(
+    scheduleId: string,
+    userId: string
+  ): Promise<ScheduleDocument> {
     try {
       const schedule = await this.findOne(scheduleId);
       const userObjectId = new Types.ObjectId(userId);
@@ -118,8 +147,8 @@ export class SchedulesService {
       return schedule;
     } catch (error) {
       this.logger.error(
-        `Error removing attendee ${userId} from schedule #${scheduleId}`,
-        error.stack
+        `Error removing attendee ${userId} from schedule ${scheduleId}`,
+        formatError(error)
       );
       throw error;
     }
@@ -131,7 +160,7 @@ export class SchedulesService {
       await schedule.cancel(reason);
       return schedule;
     } catch (error) {
-      this.logger.error(`Error cancelling schedule #${id}`, error.stack);
+      this.logger.error(`Error cancelling schedule ${id}`, formatError(error));
       throw error;
     }
   }
@@ -149,7 +178,7 @@ export class SchedulesService {
         .populate('instructor', 'username')
         .exec();
     } catch (error) {
-      this.logger.error('Error finding upcoming schedules', error.stack);
+      this.logger.error('Error finding upcoming schedules', formatError(error));
       throw error;
     }
   }
@@ -162,9 +191,9 @@ export class SchedulesService {
         })
         .exec();
 
-      await Promise.all(schedules.map(schedule => schedule.updateStatus()));
+      await Promise.all(schedules.map((schedule) => schedule.updateStatus()));
     } catch (error) {
-      this.logger.error('Error updating schedule statuses', error.stack);
+      this.logger.error('Error updating schedule statuses', formatError(error));
       throw error;
     }
   }

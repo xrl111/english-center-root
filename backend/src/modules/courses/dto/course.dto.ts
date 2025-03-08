@@ -1,4 +1,15 @@
-import { IsString, IsNotEmpty, IsDate, IsNumber, IsOptional, IsUrl, IsBoolean, IsArray, Min, IsMongoId } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsDate,
+  IsNumber,
+  IsOptional,
+  IsUrl,
+  IsBoolean,
+  IsArray,
+  Min,
+  IsMongoId,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -6,32 +17,32 @@ export class CreateCourseDto {
   @ApiProperty({ example: 'Advanced JavaScript Programming' })
   @IsString()
   @IsNotEmpty()
-  title: string;
+  title!: string;
 
   @ApiProperty({ example: 'Learn advanced JavaScript concepts and patterns' })
   @IsString()
   @IsNotEmpty()
-  description: string;
+  description!: string;
 
   @ApiProperty({ example: 'Advanced' })
   @IsString()
   @IsNotEmpty()
-  level: string;
+  level!: string;
 
   @ApiProperty({ example: '3 months' })
   @IsString()
   @IsNotEmpty()
-  duration: string;
+  duration!: string;
 
   @ApiProperty()
   @Type(() => Date)
   @IsDate()
-  startDate: Date;
+  startDate!: Date;
 
   @ApiProperty()
   @Type(() => Date)
   @IsDate()
-  endDate: Date;
+  endDate!: Date;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -41,11 +52,11 @@ export class CreateCourseDto {
   @ApiProperty({ minimum: 1 })
   @IsNumber()
   @Min(1)
-  maxStudents: number;
+  maxStudents!: number;
 
   @ApiProperty()
   @IsMongoId()
-  instructor: string;
+  instructor!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -158,5 +169,5 @@ export class CourseQueryDto {
 export class EnrollmentDto {
   @ApiProperty()
   @IsMongoId()
-  studentId: string;
+  studentId!: string;
 }

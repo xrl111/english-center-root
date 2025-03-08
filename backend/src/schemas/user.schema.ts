@@ -3,44 +3,45 @@ import { Document, Schema as MongooseSchema } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { BaseDocument, baseSchemaOptions } from './base.schema';
 import { UserRole } from '../modules/auth/types/roles';
+import { CallbackError } from 'mongoose';
 
 export type UserDocument = User & Document;
 
 @Schema(baseSchemaOptions)
 export class User {
   @Prop({ required: true })
-  username: string;
+  username!: string;
 
   @Prop({ required: true, unique: true })
-  email: string;
+  email!: string;
 
   @Prop({ required: true })
-  password: string;
+  password!: string;
 
   @Prop({
     type: String,
     enum: Object.values(UserRole),
     default: UserRole.USER,
   })
-  role: UserRole;
+  role!: UserRole;
 
   @Prop({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @Prop({ type: Date })
-  lastLogin: Date;
+  lastLogin!: Date;
 
   @Prop({
     type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Course' }],
     default: [],
   })
-  enrolledCourses: MongooseSchema.Types.ObjectId[];
+  enrolledCourses!: MongooseSchema.Types.ObjectId[];
 
   @Prop({
     type: [{ type: MongooseSchema.Types.ObjectId, ref: 'Course' }],
     default: [],
   })
-  instructingCourses: MongooseSchema.Types.ObjectId[];
+  instructingCourses!: MongooseSchema.Types.ObjectId[];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
@@ -52,11 +53,11 @@ UserSchema.index({ username: 'text', email: 'text' });
 UserSchema.index({ email: 1, isActive: 1 }, { unique: true });
 
 // Virtual fields
-UserSchema.virtual('fullName').get(function(this: UserDocument) {
+UserSchema.virtual('fullName').get(function (this: UserDocument) {
   return this.username;
 });
 
-UserSchema.virtual('isAdmin').get(function(this: UserDocument) {
+UserSchema.virtual('isAdmin').get(function (this: UserDocument) {
   return this.role === UserRole.ADMIN;
 });
 
@@ -78,7 +79,7 @@ UserSchema.set('toObject', {
 });
 
 // Pre-save hook to hash password
-UserSchema.pre('save', async function(next) {
+UserSchema.pre('save', async function (next) {
   try {
     if (!this.isModified('password')) {
       return next();
@@ -87,12 +88,12 @@ UserSchema.pre('save', async function(next) {
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {
-    next(error);
+    next(error as CallbackError);
   }
 });
 
 // Method to compare password
-UserSchema.methods.comparePassword = async function(
+UserSchema.methods.comparePassword = async function (
   candidatePassword: string
 ): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);

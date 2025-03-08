@@ -1,15 +1,24 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Course, CourseDocument } from '../../schemas/course.schema';
 import { User, UserDocument } from '../../schemas/user.schema';
-import { CreateCourseDto, UpdateCourseDto, CourseQueryDto } from './dto/course.dto';
+import {
+  CreateCourseDto,
+  UpdateCourseDto,
+  CourseQueryDto,
+} from './dto/course.dto';
 
 @Injectable()
 export class CoursesService {
   constructor(
-    @InjectModel(Course.name) private readonly courseModel: Model<CourseDocument>,
-    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(Course.name)
+    private readonly courseModel: Model<CourseDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>
   ) {}
 
   async validateObjectId(id: string): Promise<Types.ObjectId> {
@@ -61,7 +70,9 @@ export class CoursesService {
     const instructor = await this.userModel.findById(instructorId);
 
     if (!instructor) {
-      throw new NotFoundException(`Instructor with ID ${createDto.instructor} not found`);
+      throw new NotFoundException(
+        `Instructor with ID ${createDto.instructor} not found`
+      );
     }
 
     if (new Date(createDto.endDate) <= new Date(createDto.startDate)) {
@@ -83,7 +94,10 @@ export class CoursesService {
     return savedCourse.populate('instructor', 'username email');
   }
 
-  async update(id: string, updateDto: UpdateCourseDto): Promise<CourseDocument> {
+  async update(
+    id: string,
+    updateDto: UpdateCourseDto
+  ): Promise<CourseDocument> {
     const objectId = await this.validateObjectId(id);
     const course = await this.findOne(id);
 
@@ -92,7 +106,9 @@ export class CoursesService {
       const newInstructor = await this.userModel.findById(newInstructorId);
 
       if (!newInstructor) {
-        throw new NotFoundException(`New instructor with ID ${updateDto.instructor} not found`);
+        throw new NotFoundException(
+          `New instructor with ID ${updateDto.instructor} not found`
+        );
       }
 
       if (course.instructor.toString() !== updateDto.instructor) {
@@ -107,11 +123,17 @@ export class CoursesService {
       }
     }
 
-    return this.courseModel
+    const updatedCourse = await this.courseModel
       .findByIdAndUpdate(objectId, updateDto, { new: true })
       .populate('instructor', 'username email')
       .populate('students', 'username email')
       .exec();
+
+    if (!updatedCourse) {
+      throw new NotFoundException(`Course #${id} not found`);
+    }
+
+    return updatedCourse;
   }
 
   async delete(id: string): Promise<void> {
@@ -130,7 +152,10 @@ export class CoursesService {
     ]);
   }
 
-  async addStudent(courseId: string, studentId: string): Promise<CourseDocument> {
+  async addStudent(
+    courseId: string,
+    studentId: string
+  ): Promise<CourseDocument> {
     const [courseObjectId, studentObjectId] = await Promise.all([
       this.validateObjectId(courseId),
       this.validateObjectId(studentId),
@@ -154,7 +179,7 @@ export class CoursesService {
     }
 
     const isEnrolled = course.students
-      .map(id => id.toString())
+      .map((id) => id.toString())
       .includes(studentObjectId.toString());
 
     if (isEnrolled) {
@@ -171,7 +196,10 @@ export class CoursesService {
     return course.save();
   }
 
-  async removeStudent(courseId: string, studentId: string): Promise<CourseDocument> {
+  async removeStudent(
+    courseId: string,
+    studentId: string
+  ): Promise<CourseDocument> {
     const [courseObjectId, studentObjectId] = await Promise.all([
       this.validateObjectId(courseId),
       this.validateObjectId(studentId),
@@ -179,7 +207,7 @@ export class CoursesService {
 
     const course = await this.findOne(courseId);
     const studentIndex = course.students
-      .map(id => id.toString())
+      .map((id) => id.toString())
       .indexOf(studentObjectId.toString());
 
     if (studentIndex === -1) {
@@ -198,6 +226,8 @@ export class CoursesService {
 
   async findStudents(courseId: string): Promise<UserDocument[]> {
     const course = await this.findOne(courseId);
-    return course.populate('students', 'username email').then(c => c.students);
+    return course
+      .populate('students', 'username email')
+      .then((c) => c.students);
   }
 }

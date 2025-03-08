@@ -19,9 +19,9 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
-  // Get config service
+  // Get config service and logger
   const configService = app.get(ConfigService);
-  const logger = app.get(AppLogger);
+  const logger = await app.resolve(AppLogger);
   app.useLogger(logger);
 
   // Set global prefix
@@ -36,17 +36,19 @@ async function bootstrap() {
   });
 
   // Add security middleware
-  app.use(helmet() as any);
-  app.use(compression() as any);
+  app.use(helmet());
+  app.use(compression());
 
   // Parse cookies middleware
   app.use((req: Request, res: Response, next: NextFunction) => {
     if (req.headers.cookie) {
-      const cookies = req.headers.cookie.split(';').reduce<ParsedCookies>((acc, cookie) => {
-        const [key, value] = cookie.trim().split('=');
-        acc[key] = value;
-        return acc;
-      }, {});
+      const cookies = req.headers.cookie
+        .split(';')
+        .reduce<ParsedCookies>((acc, cookie) => {
+          const [key, value] = cookie.trim().split('=');
+          acc[key] = value;
+          return acc;
+        }, {});
       (req as any).cookies = cookies;
     }
     next();
@@ -61,7 +63,7 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true,
       },
-    }),
+    })
   );
 
   // Setup Swagger documentation
@@ -86,23 +88,28 @@ async function bootstrap() {
   await app.listen(port);
 
   logger.log(`Application is running on: http://localhost:${port}`);
-  logger.log(`Swagger documentation is available at: http://localhost:${port}/api/docs`);
+  logger.log(
+    `Swagger documentation is available at: http://localhost:${port}/api/docs`
+  );
 
   // Enable shutdown hooks
   app.enableShutdownHooks();
 
   // Graceful shutdown
   const signals: NodeJS.Signals[] = ['SIGTERM', 'SIGINT'];
-  signals.forEach(signal => {
+  signals.forEach((signal) => {
     process.on(signal, async () => {
       logger.log(`Received ${signal}, starting graceful shutdown...`);
-      
+
       try {
         await app.close();
         logger.log('Application closed successfully');
         process.exit(0);
       } catch (error) {
-        logger.error('Error during graceful shutdown', error instanceof Error ? error : new Error(String(error)));
+        logger.error(
+          'Error during graceful shutdown',
+          error instanceof Error ? error : new Error(String(error))
+        );
         process.exit(1);
       }
     });
@@ -110,9 +117,12 @@ async function bootstrap() {
 }
 
 // Handle unhandled promise rejections
-process.on('unhandledRejection', (reason: unknown, promise: Promise<unknown>) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
+process.on(
+  'unhandledRejection',
+  (reason: unknown, promise: Promise<unknown>) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  }
+);
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error: Error) => {
@@ -120,7 +130,7 @@ process.on('uncaughtException', (error: Error) => {
   process.exit(1);
 });
 
-bootstrap().catch(err => {
+bootstrap().catch((err) => {
   console.error('Error during application bootstrap:', err);
   process.exit(1);
 });

@@ -1,169 +1,151 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Box,
-  Alert,
-} from '@mui/material';
-import { LoadingButton } from '@mui/lab';
-import { useFormik } from 'formik';
-import * as yup from 'yup';
-import { useAuth } from '../../contexts/AuthContext';
-import { withPublicOnly } from '../../components/withAuth';
+import { Box, Container, TextField, Button, Typography, Paper, Alert, Grid } from '@mui/material';
+import { useAuth } from '../../hooks/useAuth';
+import { authApi } from '../../utils/api/auth';
 import SEO from '../../components/SEO';
 
-const validationSchema = yup.object({
-  username: yup
-    .string()
-    .min(3, 'Username should be at least 3 characters')
-    .required('Username is required'),
-  email: yup
-    .string()
-    .email('Enter a valid email')
-    .required('Email is required'),
-  password: yup
-    .string()
-    .min(6, 'Password should be at least 6 characters')
-    .required('Password is required'),
-  confirmPassword: yup
-    .string()
-    .oneOf([yup.ref('password'), null], 'Passwords must match')
-    .required('Confirm password is required'),
-});
-
-function Register() {
+export default function RegisterPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [error, setError] = useState('');
-  const { register } = useAuth();
-  
-  const formik = useFormik({
-    initialValues: {
-      username: '',
-      email: '',
-      password: '',
-      confirmPassword: '',
-    },
-    validationSchema,
-    onSubmit: async (values) => {
-      try {
-        const { confirmPassword, ...registerData } = values;
-        await register(registerData);
-        router.push('/');
-      } catch (err) {
-        setError(err.response?.data?.message || 'Registration failed');
-      }
-    },
-  });
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Disable layout for auth pages
-  Register.useLayout = false;
+  const handleSubmit = async event => {
+    event.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    const formData = new FormData(event.currentTarget);
+    const userData = {
+      email: formData.get('email'),
+      password: formData.get('password'),
+      username: formData.get('username'),
+      firstName: formData.get('firstName'),
+      lastName: formData.get('lastName'),
+    };
+
+    try {
+      const response = await authApi.register(userData);
+      await login(response); // Auto login after registration
+      router.push('/dashboard');
+    } catch (error) {
+      setError(error.response?.data?.message || 'Registration failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <>
       <SEO title="Register" />
-      <Container maxWidth="xs">
+      <Container component="main" maxWidth="xs">
         <Box
           sx={{
-            mt: 8,
+            marginTop: 8,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
           }}
         >
-          <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
-            <Typography component="h1" variant="h5" gutterBottom>
-              Create Account
+          <Paper
+            elevation={3}
+            sx={{
+              padding: 4,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              width: '100%',
+            }}
+          >
+            <Typography component="h1" variant="h5">
+              Sign Up
             </Typography>
 
             {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
+              <Alert severity="error" sx={{ mt: 2, width: '100%' }}>
                 {error}
               </Alert>
             )}
 
-            <form onSubmit={formik.handleSubmit}>
-              <TextField
-                fullWidth
-                margin="normal"
-                name="username"
-                label="Username"
-                autoComplete="username"
-                value={formik.values.username}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.username && Boolean(formik.errors.username)}
-                helperText={formik.touched.username && formik.errors.username}
-              />
-
-              <TextField
-                fullWidth
-                margin="normal"
-                name="email"
-                label="Email Address"
-                autoComplete="email"
-                value={formik.values.email}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.email && Boolean(formik.errors.email)}
-                helperText={formik.touched.email && formik.errors.email}
-              />
-
-              <TextField
-                fullWidth
-                margin="normal"
-                name="password"
-                label="Password"
-                type="password"
-                autoComplete="new-password"
-                value={formik.values.password}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.password && Boolean(formik.errors.password)}
-                helperText={formik.touched.password && formik.errors.password}
-              />
-
-              <TextField
-                fullWidth
-                margin="normal"
-                name="confirmPassword"
-                label="Confirm Password"
-                type="password"
-                autoComplete="new-password"
-                value={formik.values.confirmPassword}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.confirmPassword && Boolean(formik.errors.confirmPassword)}
-                helperText={formik.touched.confirmPassword && formik.errors.confirmPassword}
-              />
-
-              <LoadingButton
+            <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 3 }}>
+              <Grid container spacing={2}>
+                <Grid item xs={12}>
+                  <TextField
+                    required
+                    fullWidth
+                    id="username"
+                    label="Username"
+                    name="username"
+                    autoComplete="username"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    id="firstName"
+                    label="First Name"
+                    name="firstName"
+                    autoComplete="given-name"
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth
+                    id="lastName"
+                    label="Last Name"
+                    name="lastName"
+                    autoComplete="family-name"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    required
+                    fullWidth
+                    id="email"
+                    label="Email Address"
+                    name="email"
+                    autoComplete="email"
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <TextField
+                    required
+                    fullWidth
+                    name="password"
+                    label="Password"
+                    type="password"
+                    id="password"
+                    autoComplete="new-password"
+                    helperText="Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character"
+                  />
+                </Grid>
+              </Grid>
+              <Button
                 type="submit"
                 fullWidth
                 variant="contained"
                 sx={{ mt: 3, mb: 2 }}
-                loading={formik.isSubmitting}
+                disabled={isLoading}
               >
-                Sign Up
-              </LoadingButton>
-
+                {isLoading ? 'Signing up...' : 'Sign Up'}
+              </Button>
               <Box sx={{ textAlign: 'center' }}>
                 <Link href="/auth/login" passHref>
-                  <Button component="a" color="primary">
-                    Already have an account? Log in
-                  </Button>
+                  <Typography
+                    component="a"
+                    variant="body2"
+                    sx={{ textDecoration: 'none', color: 'primary.main' }}
+                  >
+                    Already have an account? Sign In
+                  </Typography>
                 </Link>
               </Box>
-            </form>
+            </Box>
           </Paper>
         </Box>
       </Container>
     </>
   );
 }
-
-export default withPublicOnly(Register);

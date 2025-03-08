@@ -1,10 +1,23 @@
-import { Injectable, UnauthorizedException, BadRequestException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+  Inject,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
 import { UsersService } from '../users/users.service';
 import { CreateUserDto } from '../users/dto/user.dto';
-import { UserDocument } from '../users/schemas/user.schema';
-import { AppLogger } from '../../services/logger.service';
-import { AUTH_ERRORS, AUTH_MESSAGES, AuthTokens, JwtPayload, RefreshTokenPayload } from './auth.module';
+import { User, UserDocument } from '../users/schemas/user.schema';
+import { AppLogger, LogMetadata } from '../../services/logger.service';
+import {
+  AUTH_ERRORS,
+  AUTH_MESSAGES,
+  AuthTokens,
+  JwtPayload,
+  RefreshTokenPayload,
+} from './auth.module';
 import { UserRole } from './types/roles';
 import * as crypto from 'crypto';
 import { FilterQuery } from 'mongoose';
@@ -17,7 +30,6 @@ export interface ProfileResponse {
   firstName?: string;
   lastName?: string;
   role: UserRole;
-  isEmailVerified: boolean;
   lastLogin?: Date;
 }
 
@@ -28,6 +40,16 @@ interface JwtConfig {
   refreshExpiresIn: string;
 }
 
+function formatError(error: unknown): LogMetadata {
+  if (error instanceof Error) {
+    return {
+      error: error.message,
+      stack: error.stack,
+    };
+  }
+  return { error: String(error) };
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -35,69 +57,118 @@ export class AuthService {
     private jwtService: JwtService,
     private logger: AppLogger,
     @Inject('JWT_CONFIG') private jwtConfig: JwtConfig,
+    @InjectModel(User.name) private userModel: Model<UserDocument>
   ) {
     this.logger.setContext('AuthService');
   }
 
   async validateUser(email: string, password: string): Promise<UserDocument> {
-    const user = await this.usersService.findByEmail(email);
-    if (!user) {
-      throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS);
-    }
+    try {
+      const user = await this.usersService.findByEmail(email);
+      if (!user) {
+        throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS);
+      }
 
-    const isValid = await user.comparePassword(password);
-    if (!isValid) {
-      throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS);
-    }
+      const isValid = await user.comparePassword(password);
+      if (!isValid) {
+        throw new UnauthorizedException(AUTH_ERRORS.INVALID_CREDENTIALS);
+      }
 
-    if (!user.isActive) {
-      throw new UnauthorizedException(AUTH_ERRORS.ACCOUNT_DISABLED);
-    }
+      if (!user.isActive) {
+        throw new UnauthorizedException(AUTH_ERRORS.ACCOUNT_DISABLED);
+      }
 
-    if (!user.isEmailVerified) {
-      throw new UnauthorizedException(AUTH_ERRORS.EMAIL_NOT_VERIFIED);
-    }
+      // Update last login time
+      user.lastLogin = new Date();
+      await user.save();
 
-    // Update last login time
-    user.lastLogin = new Date();
-    await user.save();
-    
-    return user;
+      return user;
+    } catch (error) {
+      this.logger.error('Error validating user', formatError(error));
+      throw error;
+    }
   }
 
   async login(user: UserDocument): Promise<AuthTokens> {
-    const payload: JwtPayload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-    };
+    try {
+      const payload: JwtPayload = {
+        sub: user._id.toString(),
+        email: user.email,
+        role: user.role,
+      };
 
-    const [accessToken, refreshToken] = await Promise.all([
-      this.generateAccessToken(payload),
-      this.generateRefreshToken(payload),
-    ]);
+      const [accessToken, refreshToken] = await Promise.all([
+        this.generateAccessToken(payload),
+        this.generateRefreshToken(payload),
+      ]);
 
-    // Update refresh tokens array
-    user.refreshTokens = [refreshToken, ...user.refreshTokens.slice(0, 4)];
-    await user.save();
+      // Update refresh tokens array
+      user.refreshTokens = [refreshToken, ...user.refreshTokens.slice(0, 4)];
+      await user.save();
 
-    return {
-      accessToken,
-      refreshToken,
-      expiresIn: this.getExpiresInSeconds(this.jwtConfig.expiresIn),
-    };
+      return {
+        accessToken,
+        refreshToken,
+        expiresIn: this.getExpiresInSeconds(this.jwtConfig.expiresIn),
+      };
+    } catch (error) {
+      this.logger.error('Error during login', formatError(error));
+      throw error;
+    }
   }
 
   async register(createUserDto: CreateUserDto): Promise<UserDocument> {
-    // Set default role as USER if not specified
-    const userToCreate = {
-      ...createUserDto,
-      role: createUserDto.role || UserRole.USER,
-    };
+    try {
+      // Set default role as USER if not specified and ensure account is active
+      const userToCreate = {
+        ...createUserDto,
+        role: createUserDto.role || UserRole.USER,
+        isActive: true,
+        lastLogin: new Date(),
+      };
 
-    const user = await this.usersService.create(userToCreate);
-    await this.generateEmailVerification(user);
-    return user;
+      // Check for existing user with same email or username
+      const existingUser = await this.userModel.findOne({
+        $or: [
+          { email: userToCreate.email.toLowerCase() },
+          { username: userToCreate.username },
+        ],
+      });
+
+      if (existingUser) {
+        const field =
+          existingUser.email === userToCreate.email.toLowerCase()
+            ? 'email'
+            : 'username';
+        throw new BadRequestException(`User with this ${field} already exists`);
+      }
+
+      // Create new user document
+      const user = new this.userModel(userToCreate);
+      await user.save();
+
+      // Return user with tokens
+      return this.login(user).then(() => user);
+    } catch (error: any) {
+      // Enhanced error logging
+      console.error('Registration error details:', {
+        message: error?.message || 'Unknown error',
+        stack: error?.stack,
+        name: error?.name,
+        code: error?.code,
+      });
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      if (error?.code === 11000) {
+        const field = Object.keys(error.keyPattern)[0];
+        throw new BadRequestException(`User with this ${field} already exists`);
+      }
+
+      throw error;
+    }
   }
 
   async getUserProfile(userId: string): Promise<ProfileResponse> {
@@ -109,7 +180,6 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
-      isEmailVerified: user.isEmailVerified,
       lastLogin: user.lastLogin,
     };
   }
@@ -117,81 +187,81 @@ export class AuthService {
   async refreshToken(refreshToken: string): Promise<AuthTokens> {
     try {
       const payload = await this.verifyRefreshToken(refreshToken);
-      const user = await this.usersService.findById(payload.sub);
+      const user = await this.usersService.findByEmail(payload.email);
 
       if (!user || !user.refreshTokens.includes(refreshToken)) {
         throw new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN);
       }
 
       // Remove the used refresh token and update with new one
-      user.refreshTokens = user.refreshTokens.filter(token => token !== refreshToken);
+      user.refreshTokens = user.refreshTokens.filter(
+        (token) => token !== refreshToken
+      );
       await user.save();
 
       // Generate new tokens
       return this.login(user);
     } catch (error) {
-      this.logger.error('Error refreshing token', error.stack);
+      this.logger.error('Error refreshing token', formatError(error));
       throw new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN);
     }
   }
 
   async logout(userId: string, refreshToken: string): Promise<void> {
-    const user = await this.usersService.findById(userId);
-    if (user) {
-      user.refreshTokens = user.refreshTokens.filter(token => token !== refreshToken);
-      await user.save();
-    }
-  }
-
-  async verifyEmail(token: string): Promise<void> {
     try {
-      const users = await this.usersService.findByFilter({ emailVerificationToken: token });
-      const user = users[0];
-      
-      if (!user) {
-        throw new BadRequestException(AUTH_ERRORS.INVALID_TOKEN);
+      const user = await this.usersService.findByEmail(userId);
+      if (user) {
+        user.refreshTokens = user.refreshTokens.filter(
+          (token) => token !== refreshToken
+        );
+        await user.save();
       }
-
-      user.isEmailVerified = true;
-      user.emailVerificationToken = undefined;
-      await user.save();
     } catch (error) {
-      this.logger.error('Error verifying email', error.stack);
-      throw new BadRequestException(AUTH_ERRORS.INVALID_TOKEN);
+      this.logger.error('Error during logout', formatError(error));
+      // We don't throw here as logout should be "best effort"
     }
   }
 
   async requestPasswordReset(email: string): Promise<void> {
-    const user = await this.usersService.findByEmail(email);
-    if (!user) {
-      // Don't reveal whether a user exists
-      return;
+    try {
+      const user = await this.usersService.findByEmail(email);
+      if (!user) {
+        // Don't reveal whether a user exists
+        return;
+      }
+
+      const token = crypto.randomBytes(32).toString('hex');
+      user.passwordResetToken = token;
+      user.passwordResetExpires = new Date(Date.now() + 3600000); // 1 hour
+      await user.save();
+
+      // TODO: Send password reset email
+      this.logger.debug(`Password reset token for ${email}: ${token}`);
+    } catch (error) {
+      this.logger.error('Error requesting password reset', formatError(error));
+      throw error;
     }
-
-    const token = crypto.randomBytes(32).toString('hex');
-    user.passwordResetToken = token;
-    user.passwordResetExpires = new Date(Date.now() + 3600000); // 1 hour
-    await user.save();
-
-    // TODO: Send password reset email
-    this.logger.debug(`Password reset token for ${email}: ${token}`);
   }
 
   async resetPassword(token: string, newPassword: string): Promise<void> {
-    const users = await this.usersService.findByFilter({ 
-      passwordResetToken: token,
-      passwordResetExpires: { $gt: new Date() }
-    });
-    const user = users[0];
+    try {
+      const user = await this.userModel.findOne({
+        passwordResetToken: token,
+        passwordResetExpires: { $gt: new Date() },
+      });
 
-    if (!user) {
+      if (!user) {
+        throw new BadRequestException(AUTH_ERRORS.INVALID_TOKEN);
+      }
+
+      await user.setPassword(newPassword);
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save();
+    } catch (error) {
+      this.logger.error('Error resetting password', formatError(error));
       throw new BadRequestException(AUTH_ERRORS.INVALID_TOKEN);
     }
-
-    await user.setPassword(newPassword);
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
-    await user.save();
   }
 
   private async generateAccessToken(payload: JwtPayload): Promise<string> {
@@ -213,12 +283,15 @@ export class AuthService {
     });
   }
 
-  private async verifyRefreshToken(token: string): Promise<RefreshTokenPayload> {
+  private async verifyRefreshToken(
+    token: string
+  ): Promise<RefreshTokenPayload> {
     try {
       return await this.jwtService.verifyAsync(token, {
         secret: this.jwtConfig.refreshSecret,
       });
-    } catch {
+    } catch (error) {
+      this.logger.error('Error verifying refresh token', formatError(error));
       throw new UnauthorizedException(AUTH_ERRORS.INVALID_REFRESH_TOKEN);
     }
   }
@@ -238,14 +311,5 @@ export class AuthService {
     };
 
     return parseInt(value, 10) * multipliers[unit as keyof typeof multipliers];
-  }
-
-  private async generateEmailVerification(user: UserDocument): Promise<void> {
-    const token = crypto.randomBytes(32).toString('hex');
-    user.emailVerificationToken = token;
-    await user.save();
-
-    // TODO: Send verification email
-    this.logger.debug(`Verification token for ${user.email}: ${token}`);
   }
 }

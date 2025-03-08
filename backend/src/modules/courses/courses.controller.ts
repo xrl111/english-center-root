@@ -36,7 +36,11 @@ export class CoursesController {
 
   @Get()
   @ApiOperation({ summary: 'Get all courses' })
-  @ApiResponse({ status: 200, description: 'Returns all courses', type: [Course] })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns all courses',
+    type: [Course],
+  })
   async findAll(@Query() query: CourseQueryDto): Promise<Course[]> {
     return this.coursesService.findAll(query);
   }
@@ -54,7 +58,11 @@ export class CoursesController {
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new course' })
-  @ApiResponse({ status: 201, description: 'Course created successfully', type: Course })
+  @ApiResponse({
+    status: 201,
+    description: 'Course created successfully',
+    type: Course,
+  })
   async create(@Body() createCourseDto: CreateCourseDto): Promise<Course> {
     return this.coursesService.create(createCourseDto);
   }
@@ -64,11 +72,15 @@ export class CoursesController {
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a course' })
-  @ApiResponse({ status: 200, description: 'Course updated successfully', type: Course })
+  @ApiResponse({
+    status: 200,
+    description: 'Course updated successfully',
+    type: Course,
+  })
   @ApiResponse({ status: 404, description: 'Course not found' })
   async update(
     @Param('id') id: string,
-    @Body() updateCourseDto: UpdateCourseDto,
+    @Body() updateCourseDto: UpdateCourseDto
   ): Promise<Course> {
     return this.coursesService.update(id, updateCourseDto);
   }
@@ -80,7 +92,7 @@ export class CoursesController {
   @ApiOperation({ summary: 'Delete a course' })
   @ApiResponse({ status: 200, description: 'Course deleted successfully' })
   @ApiResponse({ status: 404, description: 'Course not found' })
-  async delete(@Param('id') id: string): Promise<Course> {
+  async delete(@Param('id') id: string): Promise<void> {
     return this.coursesService.delete(id);
   }
 
@@ -88,7 +100,11 @@ export class CoursesController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get students enrolled in a course' })
-  @ApiResponse({ status: 200, description: 'Returns enrolled students', type: [User] })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns enrolled students',
+    type: [User],
+  })
   @ApiResponse({ status: 404, description: 'Course not found' })
   async findStudents(@Param('id') id: string): Promise<User[]> {
     return this.coursesService.findStudents(id);
@@ -98,11 +114,15 @@ export class CoursesController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Enroll a student in a course' })
-  @ApiResponse({ status: 200, description: 'Student enrolled successfully', type: Course })
+  @ApiResponse({
+    status: 200,
+    description: 'Student enrolled successfully',
+    type: Course,
+  })
   @ApiResponse({ status: 404, description: 'Course or student not found' })
   async addStudent(
     @Param('id') courseId: string,
-    @Body() enrollmentDto: EnrollmentDto,
+    @Body() enrollmentDto: EnrollmentDto
   ): Promise<Course> {
     return this.coursesService.addStudent(courseId, enrollmentDto.studentId);
   }
@@ -112,11 +132,15 @@ export class CoursesController {
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Remove a student from a course' })
-  @ApiResponse({ status: 200, description: 'Student removed successfully', type: Course })
+  @ApiResponse({
+    status: 200,
+    description: 'Student removed successfully',
+    type: Course,
+  })
   @ApiResponse({ status: 404, description: 'Course or student not found' })
   async removeStudent(
     @Param('id') courseId: string,
-    @Param('studentId') studentId: string,
+    @Param('studentId') studentId: string
   ): Promise<Course> {
     return this.coursesService.removeStudent(courseId, studentId);
   }

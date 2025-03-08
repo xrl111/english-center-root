@@ -1,10 +1,18 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Connection, createConnection, ConnectOptions, Model, FilterQuery, UpdateQuery } from 'mongoose';
+import {
+  Connection,
+  createConnection,
+  ConnectOptions,
+  Model,
+  FilterQuery,
+  UpdateQuery,
+  HydratedDocument,
+} from 'mongoose';
 import { AppLogger, LogMetadata } from './logger.service';
 import { BasePopulateOptions, BaseSortOptions } from '../schemas/base.schema';
 import { DatabaseMethods } from './database-methods';
-import { BaseModel, BaseModelFields } from '../interfaces/base-model.interface';
+import { BaseModelFields } from '../interfaces/base-model.interface';
 
 interface ErrorMetadata extends LogMetadata {
   error: string;
@@ -15,14 +23,16 @@ function formatError(error: unknown): ErrorMetadata {
   if (error instanceof Error) {
     return {
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
     };
   }
   return { error: String(error) };
 }
 
 @Injectable()
-export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseMethods {
+export class DatabaseService
+  implements OnModuleInit, OnModuleDestroy, DatabaseMethods
+{
   private connection!: Connection;
   private isConnected = false;
   private reconnectAttempts = 0;
@@ -45,15 +55,15 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
   }
 
   async findOne<T extends BaseModelFields>(
-    model: Model<BaseModel>,
+    model: Model<T>,
     filter: FilterQuery<T>,
     options: {
       populate?: BasePopulateOptions[];
       select?: string;
       lean?: boolean;
     } = {}
-  ): Promise<BaseModel | null> {
-    let query = model.findOne(filter);
+  ): Promise<HydratedDocument<T> | null> {
+    let query = model.findOne(filter) as any;
     if (options.populate) {
       query = query.populate(options.populate);
     }
@@ -61,13 +71,13 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
       query = query.select(options.select);
     }
     if (options.lean) {
-      query = query.lean<BaseModel>();
+      query = query.lean();
     }
     return query.exec();
   }
 
   async find<T extends BaseModelFields>(
-    model: Model<BaseModel>,
+    model: Model<T>,
     filter: FilterQuery<T>,
     options: {
       populate?: BasePopulateOptions[];
@@ -77,8 +87,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
       skip?: number;
       lean?: boolean;
     } = {}
-  ): Promise<BaseModel[]> {
-    let query = model.find(filter);
+  ): Promise<HydratedDocument<T>[]> {
+    let query = model.find(filter) as any;
     if (options.populate) {
       query = query.populate(options.populate);
     }
@@ -95,16 +105,16 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
       query = query.skip(options.skip);
     }
     if (options.lean) {
-      query = query.lean<BaseModel>();
+      query = query.lean();
     }
     return query.exec();
   }
 
   async create<T extends BaseModelFields>(
-    model: Model<BaseModel>,
+    model: Model<T>,
     data: Partial<T>,
     options: { userId?: string } = {}
-  ): Promise<BaseModel> {
+  ): Promise<HydratedDocument<T>> {
     if (options.userId) {
       (data as any).createdBy = options.userId;
     }
@@ -113,7 +123,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
   }
 
   async update<T extends BaseModelFields>(
-    model: Model<BaseModel>,
+    model: Model<T>,
     filter: FilterQuery<T>,
     update: UpdateQuery<T>,
     options: {
@@ -122,7 +132,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
       runValidators?: boolean;
       populate?: BasePopulateOptions[];
     } = {}
-  ): Promise<BaseModel | null> {
+  ): Promise<HydratedDocument<T> | null> {
     if (options.userId) {
       if (!update.$set) update.$set = {};
       (update.$set as any).updatedBy = options.userId;
@@ -130,7 +140,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
     let query = model.findOneAndUpdate(filter, update, {
       new: options.new ?? true,
       runValidators: options.runValidators ?? true,
-    });
+    }) as any;
     if (options.populate) {
       query = query.populate(options.populate);
     }
@@ -138,7 +148,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
   }
 
   async delete<T extends BaseModelFields>(
-    model: Model<BaseModel>,
+    model: Model<T>,
     filter: FilterQuery<T>,
     options: { permanent?: boolean; userId?: string } = {}
   ): Promise<boolean> {
@@ -157,7 +167,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
   }
 
   async restore<T extends BaseModelFields>(
-    model: Model<BaseModel>,
+    model: Model<T>,
     filter: FilterQuery<T>,
     options: { userId?: string } = {}
   ): Promise<boolean> {
@@ -174,26 +184,18 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
   }
 
   async count<T extends BaseModelFields>(
-    model: Model<BaseModel>, 
+    model: Model<T>,
     filter: FilterQuery<T> = {}
   ): Promise<number> {
     return model.countDocuments(filter).exec();
   }
 
   async exists<T extends BaseModelFields>(
-    model: Model<BaseModel>, 
+    model: Model<T>,
     filter: FilterQuery<T>
   ): Promise<boolean> {
     const count = await model.countDocuments(filter).limit(1).exec();
     return count > 0;
-  }
-
-  async onModuleInit() {
-    await this.connect();
-  }
-
-  async onModuleDestroy() {
-    await this.disconnect();
   }
 
   async connect(): Promise<void> {
@@ -279,7 +281,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
         this.isConnected = false;
         this.logger.log('Disconnected from MongoDB');
       } catch (error) {
-        this.logger.error('Error while disconnecting from MongoDB', formatError(error));
+        this.logger.error(
+          'Error while disconnecting from MongoDB',
+          formatError(error)
+        );
         throw error;
       }
     }
@@ -303,7 +308,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
           },
         };
       }
-      
+
       const ping = await this.connection.db.admin().ping();
       return {
         status: 'connected',
@@ -315,7 +320,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
       };
     } catch (error) {
       this.logger.error('Database health check failed', formatError(error));
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         status: 'error',
         details: {
@@ -365,9 +371,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy, DatabaseM
       await this.connection.db.dropDatabase();
       this.logger.warn('Database dropped successfully');
     } catch (error) {
-      const metadata: LogMetadata = error instanceof Error
-        ? { error: error.message, stack: error.stack }
-        : { error: String(error) };
+      const metadata: LogMetadata =
+        error instanceof Error
+          ? { error: error.message, stack: error.stack }
+          : { error: String(error) };
       this.logger.error('Failed to drop database', metadata);
       throw error;
     }

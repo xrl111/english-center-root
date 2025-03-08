@@ -1,6 +1,21 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ContactDto } from './dto/contact.dto';
 
+interface LogMetadata {
+  error: string;
+  stack?: string;
+}
+
+function formatError(error: unknown): LogMetadata {
+  if (error instanceof Error) {
+    return {
+      error: error.message,
+      stack: error.stack,
+    };
+  }
+  return { error: String(error) };
+}
+
 @Injectable()
 export class AppService {
   private readonly logger = new Logger(AppService.name);
@@ -24,7 +39,7 @@ export class AppService {
       // 1. Save to database
       // 2. Send notification email to admin
       // 3. Send confirmation email to user
-      
+
       // For now, we'll just simulate a successful message handling
       return {
         success: true,
@@ -32,7 +47,7 @@ export class AppService {
         timestamp: new Date().toISOString(),
       };
     } catch (error) {
-      this.logger.error('Error processing contact message', error.stack);
+      this.logger.error('Error processing contact message', formatError(error));
       throw error;
     }
   }

@@ -1,132 +1,127 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/router';
-import { withPublicOnly } from '../../components/withAuth';
 import Link from 'next/link';
-import {
-  Container,
-  Paper,
-  Typography,
-  TextField,
-  Button,
-  Box,
-  Alert,
-} from '@mui/material';
-import { LoadingButton } from '@mui/lab';
-import { useFormik } from 'formik';
-import * as yup from 'yup';
-import { useAuth } from '../../contexts/AuthContext';
+import { Box, Container, TextField, Button, Typography, Paper, Alert } from '@mui/material';
+import { useAuth } from '../../hooks/useAuth';
+import { authApi } from '../../utils/api/auth';
 import SEO from '../../components/SEO';
 
-const validationSchema = yup.object({
-  email: yup
-    .string()
-    .email('Enter a valid email')
-    .required('Email is required'),
-  password: yup
-    .string()
-    .min(6, 'Password should be at least 6 characters')
-    .required('Password is required'),
-});
-
-function Login() {
+export default function LoginPage() {
   const router = useRouter();
-  const [error, setError] = useState('');
   const { login } = useAuth();
-  
-  const formik = useFormik({
-    initialValues: {
-      email: '',
-      password: '',
-    },
-    validationSchema,
-    onSubmit: async (values) => {
-      try {
-        await login(values);
-        const returnUrl = router.query.returnUrl || '/';
-        router.push(returnUrl);
-      } catch (err) {
-        setError(err.response?.data?.message || 'Login failed');
-      }
-    },
-  });
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Disable layout for auth pages
-  Login.useLayout = false;
+  const handleSubmit = async event => {
+    event.preventDefault();
+    setError('');
+    setIsLoading(true);
+
+    const formData = new FormData(event.currentTarget);
+    const credentials = {
+      email: formData.get('email'),
+      password: formData.get('password'),
+    };
+
+    try {
+      const response = await authApi.login(credentials);
+      await login(response.data);
+      router.push('/admin');
+    } catch (error) {
+      setError(error.response?.data?.message || 'Failed to login');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <>
       <SEO title="Login" />
-      <Container maxWidth="xs">
+      <Container component="main" maxWidth="xs">
         <Box
           sx={{
-            mt: 8,
+            marginTop: 8,
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
           }}
         >
-          <Paper elevation={3} sx={{ p: 4, width: '100%' }}>
-            <Typography component="h1" variant="h5" gutterBottom>
-              Log In
+          <Paper
+            elevation={3}
+            sx={{
+              padding: 4,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              width: '100%',
+            }}
+          >
+            <Typography component="h1" variant="h5">
+              Sign In
             </Typography>
 
             {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
+              <Alert severity="error" sx={{ mt: 2, width: '100%' }}>
                 {error}
               </Alert>
             )}
 
-            <form onSubmit={formik.handleSubmit}>
+            <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
               <TextField
-                fullWidth
                 margin="normal"
-                name="email"
+                required
+                fullWidth
+                id="email"
                 label="Email Address"
+                name="email"
                 autoComplete="email"
-                value={formik.values.email}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.email && Boolean(formik.errors.email)}
-                helperText={formik.touched.email && formik.errors.email}
+                autoFocus
               />
-
               <TextField
-                fullWidth
                 margin="normal"
+                required
+                fullWidth
                 name="password"
                 label="Password"
                 type="password"
+                id="password"
                 autoComplete="current-password"
-                value={formik.values.password}
-                onChange={formik.handleChange}
-                onBlur={formik.handleBlur}
-                error={formik.touched.password && Boolean(formik.errors.password)}
-                helperText={formik.touched.password && formik.errors.password}
               />
-
-              <LoadingButton
+              <Button
                 type="submit"
                 fullWidth
                 variant="contained"
                 sx={{ mt: 3, mb: 2 }}
-                loading={formik.isSubmitting}
+                disabled={isLoading}
               >
-                Log In
-              </LoadingButton>
-
-              <Box sx={{ textAlign: 'center' }}>
+                {isLoading ? 'Signing in...' : 'Sign In'}
+              </Button>
+              <Box sx={{ mt: 2, textAlign: 'center' }}>
                 <Link href="/auth/register" passHref>
-                  <Button component="a" color="primary">
-                    Don't have an account? Sign up
-                  </Button>
+                  <Typography
+                    component="a"
+                    variant="body2"
+                    sx={{ textDecoration: 'none', color: 'primary.main' }}
+                  >
+                    Don't have an account? Sign Up
+                  </Typography>
                 </Link>
               </Box>
-            </form>
+              <Box sx={{ mt: 1, textAlign: 'center' }}>
+                <Link href="/auth/forgot-password" passHref>
+                  <Typography
+                    component="a"
+                    variant="body2"
+                    sx={{ textDecoration: 'none', color: 'primary.main' }}
+                  >
+                    Forgot password?
+                  </Typography>
+                </Link>
+              </Box>
+            </Box>
           </Paper>
         </Box>
       </Container>
     </>
   );
 }
-
-export default withPublicOnly(Login);

@@ -1,7 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 import { User, UserDocument } from './user.schema';
-import { BaseDocument, baseSchemaOptions } from './base.schema';
+import { BaseSchema, baseSchemaOptions } from './base.schema';
 
 export type CourseDocument = Course &
   Document<Types.ObjectId> & {
@@ -10,51 +10,51 @@ export type CourseDocument = Course &
   };
 
 @Schema(baseSchemaOptions)
-export class Course {
+export class Course extends BaseSchema {
   @Prop({ required: true })
-  title: string;
+  title!: string;
 
   @Prop({ required: true })
-  description: string;
+  description!: string;
 
   @Prop({ required: true })
-  level: string;
+  level!: string;
 
   @Prop({ required: true })
-  duration: string;
+  duration!: string;
 
   @Prop({ type: Date, required: true })
-  startDate: Date;
+  startDate!: Date;
 
   @Prop({ type: Date, required: true })
-  endDate: Date;
+  endDate!: Date;
 
   @Prop()
-  image: string;
+  image?: string;
 
   @Prop({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @Prop({
     type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }],
     default: [],
   })
-  students: Types.Array<Types.ObjectId>;
+  students!: Types.Array<Types.ObjectId>;
 
   @Prop({ type: Number, required: true, default: 20 })
-  maxStudents: number;
+  maxStudents!: number;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', required: true })
-  instructor: Types.ObjectId;
+  instructor!: Types.ObjectId;
 
   @Prop([String])
-  prerequisites: string[];
+  prerequisites?: string[];
 
   @Prop()
-  syllabus: string;
+  syllabus?: string;
 
   @Prop({ default: 0 })
-  enrollmentCount: number;
+  enrollmentCount!: number;
 }
 
 export const CourseSchema = SchemaFactory.createForClass(Course);

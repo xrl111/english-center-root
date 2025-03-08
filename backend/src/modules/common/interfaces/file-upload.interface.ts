@@ -29,9 +29,9 @@ export interface ImageProcessingResult {
 }
 
 export interface FileUploadRequest extends Request {
-  file: Express.Multer.File;
+  file: MulterFile;
   files?: {
-    [fieldname: string]: Express.Multer.File[];
+    [fieldname: string]: MulterFile[];
   };
 }
 
@@ -101,7 +101,11 @@ export interface FileValidationRules {
 
 export interface StorageConfig {
   destination: string;
-  filename?: (req: Request, file: MulterFile, cb: (error: Error | null, filename: string) => void) => void;
+  filename?: (
+    req: Request,
+    file: MulterFile,
+    cb: (error: Error | null, filename: string) => void
+  ) => void;
 }
 
 export type FileFilter = (

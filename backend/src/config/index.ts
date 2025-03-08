@@ -10,34 +10,33 @@ import {
 
 // Load environment variables based on NODE_ENV
 const envFile = process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env';
-dotenv.config({ path: join(__dirname, '../../', envFile) });
+dotenv.config({ path: join(process.cwd(), envFile) });
 
 function validateConfig(config: Partial<Config>): asserts config is Config {
-  const required = [
-    'JWT_SECRET',
-    'JWT_REFRESH_SECRET',
-    'MONGODB_URI',
-  ];
+  const required = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'MONGODB_URI'];
 
-  const missing = required.filter(key => !process.env[key]);
+  const missing = required.filter((key) => !process.env[key]);
   if (missing.length > 0) {
-    throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+    throw new Error(
+      `Missing required environment variables: ${missing.join(', ')}`
+    );
   }
 }
 
 function parseArrayValue(value: string): string[] {
-  return value.split(',').map(item => item.trim());
+  return value.split(',').map((item) => item.trim());
 }
 
 const config: Config = {
   port: Number(process.env.PORT) || 3000,
-  nodeEnv: isValidNodeEnv(process.env.NODE_ENV || 'development') 
+  nodeEnv: isValidNodeEnv(process.env.NODE_ENV || 'development')
     ? process.env.NODE_ENV || 'development'
     : 'development',
   apiPrefix: process.env.API_PREFIX || 'api',
 
   database: {
-    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/learning-platform',
+    uri:
+      process.env.MONGODB_URI || 'mongodb://localhost:27017/learning-platform',
     options: {
       useNewUrlParser: true,
       useUnifiedTopology: true,
@@ -70,15 +69,19 @@ const config: Config = {
   },
 
   upload: {
-    destination: join(__dirname, '../../', process.env.UPLOAD_DEST || 'uploads'),
+    destination: join(
+      __dirname,
+      '../../',
+      process.env.UPLOAD_DEST || 'uploads'
+    ),
     maxFileSize: Number(process.env.UPLOAD_MAX_SIZE) || 5242880,
     allowedMimeTypes: process.env.UPLOAD_ALLOWED_MIMES?.split(',')
-      .map(mime => mime.trim())
+      .map((mime) => mime.trim())
       .filter(isValidMimeType) || ['image/*', 'application/pdf'],
     dest: join(__dirname, '../../', process.env.UPLOAD_DEST || 'uploads'),
     maxSize: Number(process.env.UPLOAD_MAX_SIZE) || 5242880,
     allowedMimes: process.env.UPLOAD_ALLOWED_MIMES?.split(',')
-      .map(mime => mime.trim())
+      .map((mime) => mime.trim())
       .filter(isValidMimeType) || ['image/*', 'application/pdf'],
   },
 
@@ -93,7 +96,7 @@ const config: Config = {
   },
 
   logging: {
-    level: isValidLogLevel(process.env.LOG_LEVEL || 'info') 
+    level: isValidLogLevel(process.env.LOG_LEVEL || 'info')
       ? process.env.LOG_LEVEL || 'info'
       : 'info',
     format: process.env.LOG_FORMAT || 'combined',
@@ -121,7 +124,7 @@ const config: Config = {
   },
 
   validation: DEFAULT_CONFIG.validation!,
-  
+
   app: {
     ...DEFAULT_CONFIG.app!,
     env: process.env.NODE_ENV || 'development',
@@ -147,8 +150,10 @@ const config: Config = {
       fileSize: Number(process.env.UPLOAD_MAX_SIZE) || 5242880,
     },
     fileFilter: (req, file, cb) => {
-      const allowedMimes = parseArrayValue(process.env.UPLOAD_ALLOWED_MIMES || 'image/*,application/pdf');
-      const isValid = allowedMimes.some(mime => {
+      const allowedMimes = parseArrayValue(
+        process.env.UPLOAD_ALLOWED_MIMES || 'image/*,application/pdf'
+      );
+      const isValid = allowedMimes.some((mime) => {
         if (mime.endsWith('/*')) {
           const type = mime.split('/')[0];
           return file.mimetype.startsWith(`${type}/`);

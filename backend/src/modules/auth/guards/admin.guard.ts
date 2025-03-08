@@ -15,10 +15,7 @@ import { AppLogger } from '../../../services/logger.service';
 export class AdminGuard extends RolesGuard {
   private readonly logger: AppLogger;
 
-  constructor(
-    reflector: Reflector,
-    logger: AppLogger
-  ) {
+  constructor(reflector: Reflector, logger: AppLogger) {
     super(reflector);
     this.logger = logger;
     this.logger.setContext('AdminGuard');
@@ -35,20 +32,29 @@ export class AdminGuard extends RolesGuard {
 
     // Check if user is an admin
     if (user.role !== UserRole.ADMIN) {
-      this.logger.warn(`Unauthorized admin access attempt by user ${user.id} with role ${user.role}`);
-      throw new ForbiddenException('Only administrators can access this resource');
+      this.logger.warn(
+        `Unauthorized admin access attempt by user ${user.id} with role ${user.role}`
+      );
+      throw new ForbiddenException(
+        'Only administrators can access this resource'
+      );
     }
 
     // Additional security checks for admin actions
     await this.performAdminSecurityChecks(user, request);
 
     // Log successful admin access
-    this.logger.log(`Admin access granted to user ${user.id} for ${request.method} ${request.url}`);
+    this.logger.log(
+      `Admin access granted to user ${user.id} for ${request.method} ${request.url}`
+    );
 
     return true;
   }
 
-  private async performAdminSecurityChecks(user: RequestWithUser['user'], request: any): Promise<void> {
+  private async performAdminSecurityChecks(
+    user: RequestWithUser['user'],
+    request: any
+  ): Promise<void> {
     // Check if the admin account is fully verified
     if (!user.isEmailVerified) {
       throw new ForbiddenException('Admin account email must be verified');
@@ -61,12 +67,15 @@ export class AdminGuard extends RolesGuard {
 
     // Check for suspicious activity
     if (this.isSuspiciousActivity(request)) {
-      this.logger.warn(`Suspicious admin activity detected for user ${user.id}`, {
-        ip: request.ip,
-        userAgent: request.headers['user-agent'],
-        method: request.method,
-        path: request.path,
-      });
+      this.logger.warn(
+        `Suspicious admin activity detected for user ${user.id}`,
+        {
+          ip: request.ip,
+          userAgent: request.headers['user-agent'],
+          method: request.method,
+          path: request.path,
+        }
+      );
       throw new ForbiddenException('Suspicious activity detected');
     }
   }
@@ -111,25 +120,45 @@ export class AdminGuard extends RolesGuard {
   }
 
   /**
-   * Decorator factory for requiring admin role with specific permissions
+   * Decorator factory for requiring admin permissions
    */
   static requirePermissions(...permissions: string[]) {
-    return function (target: any, key: string, descriptor: PropertyDescriptor) {
+    return function (
+      target: any,
+      propertyKey: string,
+      descriptor: PropertyDescriptor
+    ) {
       const originalMethod = descriptor.value;
-      
+
       descriptor.value = async function (...args: any[]) {
-        const user = this.request?.user;
-        
-        if (!user || user.role !== UserRole.ADMIN) {
+        let request: RequestWithUser | null = null;
+
+        // Helper function to check if an argument is an execution context
+        const isExecutionContext = (arg: any): arg is ExecutionContext =>
+          arg && typeof arg.switchToHttp === 'function';
+
+        // Handle both guard and controller contexts
+        if (isExecutionContext(args[0])) {
+          // If called from a guard
+          request = args[0].switchToHttp().getRequest();
+        } else {
+          // If called from a controller method
+          const context = args.find(isExecutionContext);
+          if (context) {
+            request = context.switchToHttp().getRequest();
+          }
+        }
+
+        if (!request?.user || request.user.role !== UserRole.ADMIN) {
           throw new ForbiddenException('Admin access required');
         }
 
         // Check specific permissions
         if (permissions.length > 0) {
-          const hasPermissions = permissions.every(permission => 
-            user.permissions?.includes(permission)
+          const hasPermissions = permissions.every((permission) =>
+            request.user.permissions?.includes(permission)
           );
-          
+
           if (!hasPermissions) {
             throw new ForbiddenException('Insufficient admin permissions');
           }

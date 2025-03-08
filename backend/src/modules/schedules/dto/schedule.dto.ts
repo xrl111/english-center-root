@@ -1,4 +1,13 @@
-import { IsString, IsNotEmpty, IsDateString, IsNumber, Min, IsOptional, IsEnum, IsMongoId } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsDateString,
+  IsNumber,
+  Min,
+  IsOptional,
+  IsEnum,
+  IsMongoId,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ScheduleStatus } from '../../../schemas/schedule.schema';
@@ -7,37 +16,37 @@ export class CreateScheduleDto {
   @ApiProperty({ description: 'Course ID' })
   @IsNotEmpty()
   @IsMongoId()
-  course: string;
+  course!: string;
 
   @ApiProperty({ description: 'Instructor ID' })
   @IsNotEmpty()
   @IsMongoId()
-  instructor: string;
+  instructor!: string;
 
   @ApiProperty({ description: 'Schedule title' })
   @IsNotEmpty()
   @IsString()
-  title: string;
+  title!: string;
 
   @ApiProperty({ description: 'Start date and time' })
   @IsNotEmpty()
   @IsDateString()
-  startDate: Date;
+  startDate!: Date;
 
   @ApiProperty({ description: 'End date and time' })
   @IsNotEmpty()
   @IsDateString()
-  endDate: Date;
+  endDate!: Date;
 
   @ApiProperty({ description: 'Duration (e.g., "2 hours")' })
   @IsNotEmpty()
   @IsString()
-  duration: string;
+  duration!: string;
 
   @ApiProperty({ description: 'Location of the class' })
   @IsNotEmpty()
   @IsString()
-  location: string;
+  location!: string;
 
   @ApiPropertyOptional({ description: 'Additional description' })
   @IsOptional()
@@ -48,7 +57,7 @@ export class CreateScheduleDto {
   @IsNumber()
   @Min(1)
   @Type(() => Number)
-  maxAttendees: number;
+  maxAttendees!: number;
 }
 
 export class UpdateScheduleDto {
@@ -99,14 +108,14 @@ export class AttendeeDto {
   @ApiProperty({ description: 'User ID of the attendee' })
   @IsNotEmpty()
   @IsMongoId()
-  userId: string;
+  userId!: string;
 }
 
 export class CancelScheduleDto {
   @ApiProperty({ description: 'Reason for cancellation' })
   @IsNotEmpty()
   @IsString()
-  reason: string;
+  reason!: string;
 }
 
 export class ScheduleQueryDto {
@@ -135,7 +144,9 @@ export class ScheduleQueryDto {
   @IsDateString()
   endDate?: Date;
 
-  @ApiPropertyOptional({ description: 'Whether to include only active schedules' })
+  @ApiPropertyOptional({
+    description: 'Whether to include only active schedules',
+  })
   @IsOptional()
   @Type(() => Boolean)
   isActive?: boolean;

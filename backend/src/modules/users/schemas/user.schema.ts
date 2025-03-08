@@ -1,8 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, SchemaOptions } from 'mongoose';
+import { Document, SchemaOptions, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { UserRole } from '../../auth/types/roles';
-import { BaseSchemaClass, baseSchemaOptions } from '../../../schemas/base.schema';
+import { BaseSchema, baseSchemaOptions } from '../../../schemas/base.schema';
 
 interface UserMethods {
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -22,21 +22,38 @@ interface UserVirtuals {
   isLocked: boolean;
 }
 
-export type UserDocument = User & Document & UserMethods & UserVirtuals;
+interface TimestampFields {
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface BaseFields {
+  _id: Types.ObjectId;
+  id: string;
+  isActive: boolean;
+  isDeleted?: boolean;
+}
+
+export type UserDocument = User &
+  Document &
+  UserMethods &
+  UserVirtuals &
+  TimestampFields &
+  BaseFields;
 
 const userSchemaOptions: SchemaOptions = {
   ...baseSchemaOptions,
   timestamps: true,
+  collection: 'users',
   toJSON: {
     virtuals: true,
     transform: (_, ret: Record<string, any>) => {
+      ret.id = ret._id?.toString();
       delete ret.password;
       delete ret.refreshTokens;
-      delete ret.emailVerificationToken;
       delete ret.passwordResetToken;
       delete ret.passwordResetExpires;
       delete ret.__v;
-      ret.id = ret._id;
       delete ret._id;
       return ret;
     },
@@ -44,17 +61,23 @@ const userSchemaOptions: SchemaOptions = {
 };
 
 @Schema(userSchemaOptions)
-export class User extends BaseSchemaClass {
-  @Prop({ required: true, unique: true, trim: true, lowercase: true })
+export class User extends BaseSchema {
+  @Prop({
+    required: true,
+    unique: true,
+    trim: true,
+    lowercase: true,
+    index: true,
+  })
   email!: string;
 
   @Prop({ required: true })
   password!: string;
 
-  @Prop({ required: true, unique: true, trim: true })
+  @Prop({ required: true, unique: true, trim: true, index: true })
   username!: string;
 
-  @Prop({ required: true, enum: UserRole, default: UserRole.USER })
+  @Prop({ required: true, enum: UserRole, default: UserRole.USER, index: true })
   role!: UserRole;
 
   @Prop({ type: String, required: false })
@@ -62,12 +85,6 @@ export class User extends BaseSchemaClass {
 
   @Prop({ type: String, required: false })
   lastName?: string;
-
-  @Prop({ type: Boolean, default: false })
-  isEmailVerified!: boolean;
-
-  @Prop({ type: String, required: false })
-  emailVerificationToken?: string;
 
   @Prop({ type: String, required: false })
   passwordResetToken?: string;
@@ -103,26 +120,26 @@ export class User extends BaseSchemaClass {
 export const UserSchema = SchemaFactory.createForClass(User);
 
 // Add virtual fields
-UserSchema.virtual('fullName').get(function(this: UserDocument) {
+UserSchema.virtual('fullName').get(function (this: UserDocument) {
   if (this.firstName && this.lastName) {
     return `${this.firstName} ${this.lastName}`;
   }
   return this.username;
 });
 
-UserSchema.virtual('isLocked').get(function(this: UserDocument) {
+UserSchema.virtual('isLocked').get(function (this: UserDocument) {
   return !!(this.lockUntil && this.lockUntil.getTime() > Date.now());
 });
 
 // Add methods
-UserSchema.methods.comparePassword = async function(
+UserSchema.methods.comparePassword = async function (
   this: UserDocument,
   candidatePassword: string
 ): Promise<boolean> {
   return bcrypt.compare(candidatePassword, this.password);
 };
 
-UserSchema.methods.setPassword = async function(
+UserSchema.methods.setPassword = async function (
   this: UserDocument,
   newPassword: string
 ): Promise<void> {
@@ -130,44 +147,46 @@ UserSchema.methods.setPassword = async function(
   this.password = await bcrypt.hash(newPassword, salt);
 };
 
-UserSchema.methods.incrementLoginAttempts = function(this: UserDocument): void {
+UserSchema.methods.incrementLoginAttempts = function (
+  this: UserDocument
+): void {
   this.loginAttempts += 1;
   if (this.loginAttempts >= 5) {
     this.lockUntil = new Date(Date.now() + 3600000); // 1 hour
   }
 };
 
-UserSchema.methods.resetLoginAttempts = function(this: UserDocument): void {
+UserSchema.methods.resetLoginAttempts = function (this: UserDocument): void {
   this.loginAttempts = 0;
   this.lockUntil = undefined;
 };
 
-UserSchema.methods.addRefreshToken = function(
+UserSchema.methods.addRefreshToken = function (
   this: UserDocument,
   token: string
 ): void {
   this.refreshTokens = [token, ...this.refreshTokens.slice(0, 4)];
 };
 
-UserSchema.methods.removeRefreshToken = function(
+UserSchema.methods.removeRefreshToken = function (
   this: UserDocument,
   token: string
 ): void {
-  this.refreshTokens = this.refreshTokens.filter(t => t !== token);
+  this.refreshTokens = this.refreshTokens.filter((t) => t !== token);
 };
 
-UserSchema.methods.clearAllRefreshTokens = function(this: UserDocument): void {
+UserSchema.methods.clearAllRefreshTokens = function (this: UserDocument): void {
   this.refreshTokens = [];
 };
 
-UserSchema.methods.hasPermission = function(
+UserSchema.methods.hasPermission = function (
   this: UserDocument,
   permission: string
 ): boolean {
   return this.permissions.includes(permission);
 };
 
-UserSchema.methods.addPermission = function(
+UserSchema.methods.addPermission = function (
   this: UserDocument,
   permission: string
 ): void {
@@ -176,24 +195,15 @@ UserSchema.methods.addPermission = function(
   }
 };
 
-UserSchema.methods.removePermission = function(
+UserSchema.methods.removePermission = function (
   this: UserDocument,
   permission: string
 ): void {
-  this.permissions = this.permissions.filter(p => p !== permission);
+  this.permissions = this.permissions.filter((p) => p !== permission);
 };
 
-// Add indexes
-UserSchema.index({ email: 1 }, { unique: true });
-UserSchema.index({ username: 1 }, { unique: true });
-UserSchema.index({ role: 1 });
-UserSchema.index({ isEmailVerified: 1 });
-UserSchema.index({ lastLogin: 1 });
-UserSchema.index({ enrolledCourses: 1 });
-UserSchema.index({ instructingCourses: 1 });
-
-// Pre-save middleware
-UserSchema.pre('save', async function(next) {
+// Add pre-save middleware for password hashing
+UserSchema.pre('save', async function (next) {
   if (!this.isModified('password')) {
     return next();
   }
@@ -206,3 +216,11 @@ UserSchema.pre('save', async function(next) {
     next(error as Error);
   }
 });
+
+// Add indexes
+UserSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ username: 1 }, { unique: true });
+UserSchema.index({ role: 1 });
+UserSchema.index({ lastLogin: 1 });
+UserSchema.index({ enrolledCourses: 1 });
+UserSchema.index({ instructingCourses: 1 });

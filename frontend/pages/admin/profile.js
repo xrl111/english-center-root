@@ -1,7 +1,6 @@
 import { Box, Container, Typography, Paper } from '@mui/material';
-import Layout from '../components/Layout';
-import PageHeader from '../components/PageHeader';
-import SEO from '../components/SEO';
+import PageHeader from '../../components/PageHeader';
+import SEO from '../../components/SEO';
 
 const ProfilePage = () => {
   return (

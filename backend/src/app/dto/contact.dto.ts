@@ -6,21 +6,21 @@ export class ContactDto {
   @IsNotEmpty()
   @IsString()
   @MinLength(2)
-  name: string;
+  name!: string;
 
   @ApiProperty({ example: 'john@example.com' })
   @IsNotEmpty()
   @IsEmail()
-  email: string;
+  email!: string;
 
   @ApiProperty({ example: 'Course Inquiry' })
   @IsNotEmpty()
   @IsString()
-  subject: string;
+  subject!: string;
 
   @ApiProperty({ example: 'I would like to inquire about your courses...' })
   @IsNotEmpty()
   @IsString()
   @MinLength(10)
-  message: string;
+  message!: string;
 }

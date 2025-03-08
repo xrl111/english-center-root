@@ -1,5 +1,7 @@
 import { Request } from 'express';
 import { Document, SortOrder } from 'mongoose';
+import { BaseDocumentFields } from '../schemas/base.schema';
+import { UserRole } from '../modules/auth/types/roles';
 
 /**
  * Common filter options for database queries
@@ -54,32 +56,11 @@ export interface ApiResponse<T = any> {
 }
 
 /**
- * Base entity interface for MongoDB documents
+ * Base document interface extending both Document and BaseDocumentFields
  */
-export interface BaseEntity {
-  id: string;
-  createdAt: Date;
-  updatedAt: Date;
-  isActive: boolean;
-  deletedAt?: Date;
-}
-
-/**
- * Base document interface extending both Document and BaseEntity
- */
-export interface BaseDocument extends Omit<Document, keyof BaseEntity>, BaseEntity {}
-
-/**
- * Extended request interface with authenticated user
- */
-export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    role: string;
-    [key: string]: any;
-  };
-}
+export interface BaseDocument
+  extends Omit<Document, keyof BaseDocumentFields>,
+    BaseDocumentFields {}
 
 /**
  * Common validation error format
@@ -139,7 +120,10 @@ export interface ServiceOptions {
 export interface Repository<T extends BaseDocument> {
   findById(id: string, options?: ServiceOptions): Promise<T | null>;
   findOne(filter: FilterOptions, options?: ServiceOptions): Promise<T | null>;
-  find(filter?: FilterOptions, options?: ServiceOptions & PaginationOptions): Promise<PaginatedResponse<T>>;
+  find(
+    filter?: FilterOptions,
+    options?: ServiceOptions & PaginationOptions
+  ): Promise<PaginatedResponse<T>>;
   create(data: Partial<T>): Promise<T>;
   update(id: string, data: Partial<T>): Promise<T | null>;
   delete(id: string): Promise<boolean>;
@@ -177,9 +161,12 @@ export interface HealthCheck {
   timestamp: Date;
   uptime: number;
   memoryUsage: NodeJS.MemoryUsage;
-  services?: Record<string, {
-    status: 'ok' | 'error';
-    latency?: number;
-    error?: string;
-  }>;
+  services?: Record<
+    string,
+    {
+      status: 'ok' | 'error';
+      latency?: number;
+      error?: string;
+    }
+  >;
 }

@@ -14,7 +14,6 @@ import {
   LoginDto,
   RefreshTokenDto,
   LogoutDto,
-  VerifyEmailDto,
   RequestPasswordResetDto,
   ResetPasswordDto,
   TokenResponse,
@@ -23,7 +22,7 @@ import {
 } from './dto/auth.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { Public } from './decorators/public.decorator';
-import { AUTH_MESSAGES } from './auth.module';
+import { AUTH_MESSAGES } from './constants/messages';
 import {
   ApiTags,
   ApiOperation,
@@ -39,15 +38,17 @@ export class AuthController {
 
   @Public()
   @Post('register')
-  @ApiOperation({ summary: 'Register a new user' })
+  @ApiOperation({
+    summary: 'Register a new user and return authentication tokens',
+  })
   @ApiResponse({
     status: HttpStatus.CREATED,
-    description: AUTH_MESSAGES.REGISTER_SUCCESS,
-    type: MessageResponse,
+    description: AUTH_MESSAGES.SUCCESS.REGISTER,
+    type: TokenResponse,
   })
-  async register(@Body() registerDto: RegisterDto): Promise<MessageResponse> {
-    await this.authService.register(registerDto);
-    return { message: AUTH_MESSAGES.REGISTER_SUCCESS };
+  async register(@Body() registerDto: RegisterDto): Promise<TokenResponse> {
+    const user = await this.authService.register(registerDto);
+    return this.authService.login(user);
   }
 
   @Public()
@@ -56,7 +57,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Login user' })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: AUTH_MESSAGES.LOGIN_SUCCESS,
+    description: AUTH_MESSAGES.SUCCESS.LOGIN,
     type: TokenResponse,
   })
   async login(@Body() loginDto: LoginDto): Promise<TokenResponse> {
@@ -76,17 +77,7 @@ export class AuthController {
     type: ProfileResponse,
   })
   async getProfile(@Req() req: any): Promise<ProfileResponse> {
-    const user = await this.authService.getUserProfile(req.user.id);
-    return {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      isEmailVerified: user.isEmailVerified,
-      lastLogin: user.lastLogin,
-    };
+    return this.authService.getUserProfile(req.user.id);
   }
 
   @Public()
@@ -95,10 +86,12 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: AUTH_MESSAGES.REFRESH_SUCCESS,
+    description: AUTH_MESSAGES.SUCCESS.TOKEN_REFRESH,
     type: TokenResponse,
   })
-  async refresh(@Body() refreshTokenDto: RefreshTokenDto): Promise<TokenResponse> {
+  async refresh(
+    @Body() refreshTokenDto: RefreshTokenDto
+  ): Promise<TokenResponse> {
     return this.authService.refreshToken(refreshTokenDto.refreshToken);
   }
 
@@ -108,26 +101,15 @@ export class AuthController {
   @ApiOperation({ summary: 'Logout user' })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: AUTH_MESSAGES.LOGOUT_SUCCESS,
+    description: AUTH_MESSAGES.SUCCESS.LOGOUT,
     type: MessageResponse,
   })
-  async logout(@Req() req: any, @Body() logoutDto: LogoutDto): Promise<MessageResponse> {
+  async logout(
+    @Req() req: any,
+    @Body() logoutDto: LogoutDto
+  ): Promise<MessageResponse> {
     await this.authService.logout(req.user.id, logoutDto.refreshToken);
-    return { message: AUTH_MESSAGES.LOGOUT_SUCCESS };
-  }
-
-  @Public()
-  @Post('verify-email')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify email address' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: AUTH_MESSAGES.EMAIL_VERIFIED,
-    type: MessageResponse,
-  })
-  async verifyEmail(@Body() verifyEmailDto: VerifyEmailDto): Promise<MessageResponse> {
-    await this.authService.verifyEmail(verifyEmailDto.token);
-    return { message: AUTH_MESSAGES.EMAIL_VERIFIED };
+    return { message: AUTH_MESSAGES.SUCCESS.LOGOUT };
   }
 
   @Public()
@@ -136,14 +118,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Request password reset' })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: AUTH_MESSAGES.PASSWORD_RESET_REQUEST,
+    description: AUTH_MESSAGES.SUCCESS.PASSWORD_RESET_SENT,
     type: MessageResponse,
   })
   async requestPasswordReset(
     @Body() requestResetDto: RequestPasswordResetDto
   ): Promise<MessageResponse> {
     await this.authService.requestPasswordReset(requestResetDto.email);
-    return { message: AUTH_MESSAGES.PASSWORD_RESET_REQUEST };
+    return { message: AUTH_MESSAGES.SUCCESS.PASSWORD_RESET_SENT };
   }
 
   @Public()
@@ -152,14 +134,16 @@ export class AuthController {
   @ApiOperation({ summary: 'Reset password' })
   @ApiResponse({
     status: HttpStatus.OK,
-    description: AUTH_MESSAGES.PASSWORD_RESET_SUCCESS,
+    description: AUTH_MESSAGES.SUCCESS.PASSWORD_RESET,
     type: MessageResponse,
   })
-  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto): Promise<MessageResponse> {
+  async resetPassword(
+    @Body() resetPasswordDto: ResetPasswordDto
+  ): Promise<MessageResponse> {
     await this.authService.resetPassword(
       resetPasswordDto.token,
       resetPasswordDto.newPassword
     );
-    return { message: AUTH_MESSAGES.PASSWORD_RESET_SUCCESS };
+    return { message: AUTH_MESSAGES.SUCCESS.PASSWORD_RESET };
   }
 }

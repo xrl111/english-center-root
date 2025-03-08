@@ -7,31 +7,21 @@ import config from '../../../config';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private usersService: UsersService) {
+  constructor(private readonly usersService: UsersService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
       secretOrKey: config.jwt.secret,
+      ignoreExpiration: false,
     });
   }
 
   async validate(payload: JwtPayload) {
     try {
       const user = await this.usersService.findById(payload.sub);
-      
-      if (!user) {
-        throw new UnauthorizedException('User not found');
+      if (!user || !user.isActive) {
+        throw new UnauthorizedException('Invalid token');
       }
-
-      if (!user.isActive) {
-        throw new UnauthorizedException('User account is disabled');
-      }
-
-      return {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-      };
+      return user;
     } catch (error) {
       throw new UnauthorizedException('Invalid token');
     }
