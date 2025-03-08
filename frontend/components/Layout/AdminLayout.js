@@ -22,7 +22,7 @@ import {
 } from '@mui/icons-material';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { withAuth } from '../withAuth';
 import { authApi } from '../../utils/api/auth';
 
@@ -40,8 +40,8 @@ const AdminLayout = ({ children }) => {
   const handleLogout = async () => {
     try {
       await authApi.logout();
-      logout();
-      router.push('/login');
+      await logout();
+      router.push('/auth/login');
     } catch (error) {
       console.error('Logout failed:', error);
     }

@@ -10,9 +10,10 @@ export interface BaseDocumentFields {
   isActive: boolean;
 }
 
+export type BaseDocument = Document & BaseDocumentFields;
+
 @Schema({ timestamps: true })
-export class BaseSchema implements Omit<BaseDocumentFields, '_id' | 'id'> {
-  @Prop({ type: Types.ObjectId, auto: true })
+export class BaseSchema {
   _id!: Types.ObjectId;
 
   @Prop({ type: String, virtual: true })
@@ -30,8 +31,6 @@ export class BaseSchema implements Omit<BaseDocumentFields, '_id' | 'id'> {
   @Prop({ type: Boolean, default: true })
   isActive!: boolean;
 }
-
-export type BaseDocument = Document & BaseDocumentFields;
 
 export const baseSchemaOptions = {
   timestamps: true,
@@ -102,7 +101,6 @@ export function createSchemaForClass(target: new (...args: any[]) => any): {
 
 export const addBaseSchema = (schema: any): void => {
   schema.add({
-    _id: { type: Types.ObjectId, auto: true },
     createdAt: { type: Date },
     updatedAt: { type: Date },
     isDeleted: { type: Boolean, default: false },

@@ -2,6 +2,7 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
   Inject,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -171,17 +172,31 @@ export class AuthService {
     }
   }
 
-  async getUserProfile(userId: string): Promise<ProfileResponse> {
-    const user = await this.usersService.findById(userId);
-    return {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      lastLogin: user.lastLogin,
-    };
+  async getUserProfile(
+    userId: string | Types.ObjectId
+  ): Promise<ProfileResponse> {
+    try {
+      const user = await this.userModel
+        .findById(userId)
+        .select('-password -refreshTokens');
+
+      if (!user) {
+        throw new NotFoundException('User not found');
+      }
+
+      return {
+        id: user._id.toString(),
+        email: user.email,
+        username: user.username,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        lastLogin: user.lastLogin,
+      };
+    } catch (error) {
+      this.logger.error('Error fetching user profile', formatError(error));
+      throw error;
+    }
   }
 
   async refreshToken(refreshToken: string): Promise<AuthTokens> {

@@ -77,7 +77,7 @@ export class AuthController {
     type: ProfileResponse,
   })
   async getProfile(@Req() req: any): Promise<ProfileResponse> {
-    return this.authService.getUserProfile(req.user.id);
+    return this.authService.getUserProfile(req.user._id);
   }
 
   @Public()

@@ -1,31 +1,31 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import LoadingOverlay from './LoadingOverlay';
 
 export function withAuth(WrappedComponent, { requireAdmin = false } = {}) {
   return function WithAuthComponent(props) {
-    const { user, isLoading, isAuthenticated } = useAuth();
+    const { user, loading } = useAuth();
     const router = useRouter();
 
     useEffect(() => {
-      if (!isLoading) {
-        if (!isAuthenticated) {
+      if (!loading) {
+        if (!user) {
           router.replace({
             pathname: '/auth/login',
             query: { returnUrl: router.asPath },
           });
-        } else if (requireAdmin && user?.role !== 'admin') {
+        } else if (requireAdmin && user.role !== 'admin') {
           router.replace('/');
         }
       }
-    }, [isLoading, isAuthenticated, user, router, requireAdmin]);
+    }, [loading, user, router, requireAdmin]);
 
-    if (isLoading) {
+    if (loading) {
       return <LoadingOverlay />;
     }
 
-    if (!isAuthenticated || (requireAdmin && user?.role !== 'admin')) {
+    if (!user || (requireAdmin && user.role !== 'admin')) {
       return null;
     }
 
@@ -35,16 +35,20 @@ export function withAuth(WrappedComponent, { requireAdmin = false } = {}) {
 
 export function withPublicOnly(WrappedComponent) {
   return function WithPublicOnlyComponent(props) {
-    const { isLoading, isAuthenticated } = useAuth();
+    const { user, loading } = useAuth();
     const router = useRouter();
 
     useEffect(() => {
-      if (!isLoading && isAuthenticated) {
-        router.replace('/');
+      if (!loading && user) {
+        if (user.role === 'admin') {
+          router.replace('/admin');
+        } else {
+          router.replace('/');
+        }
       }
-    }, [isLoading, isAuthenticated, router]);
+    }, [loading, user, router]);
 
-    if (isLoading || isAuthenticated) {
+    if (loading || user) {
       return <LoadingOverlay />;
     }
 

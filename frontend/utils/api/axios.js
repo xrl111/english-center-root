@@ -1,11 +1,25 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1',
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+// Request interceptor for adding token
+instance.interceptors.request.use(
+  config => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  error => {
+    return Promise.reject(error);
+  }
+);
 
 // Response interceptor for handling token refresh
 instance.interceptors.response.use(
@@ -31,8 +45,7 @@ instance.interceptors.response.use(
       localStorage.setItem('refreshToken', newRefreshToken);
 
       // Update Authorization header
-      instance.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-      originalRequest.headers['Authorization'] = `Bearer ${accessToken}`;
+      originalRequest.headers.Authorization = `Bearer ${accessToken}`;
 
       // Retry the original request
       return instance(originalRequest);
@@ -40,23 +53,9 @@ instance.interceptors.response.use(
       // If refresh fails, clear tokens and reject
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
-      delete instance.defaults.headers.common['Authorization'];
+      window.location.href = '/auth/login';
       return Promise.reject(refreshError);
     }
-  }
-);
-
-// Request interceptor for adding token
-instance.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-    return config;
-  },
-  error => {
-    return Promise.reject(error);
   }
 );
 

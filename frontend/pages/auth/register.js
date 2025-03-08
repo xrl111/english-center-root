@@ -29,7 +29,7 @@ export default function RegisterPage() {
     try {
       const response = await authApi.register(userData);
       await login(response); // Auto login after registration
-      router.push('/dashboard');
+      router.push('/admin');
     } catch (error) {
       setError(error.response?.data?.message || 'Registration failed');
     } finally {

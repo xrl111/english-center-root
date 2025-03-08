@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Box, Container, TextField, Button, Typography, Paper, Alert } from '@mui/material';
@@ -11,6 +11,7 @@ export default function LoginPage() {
   const { login } = useAuth();
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const { returnUrl } = router.query;
 
   const handleSubmit = async event => {
     event.preventDefault();
@@ -25,10 +26,23 @@ export default function LoginPage() {
 
     try {
       const response = await authApi.login(credentials);
-      await login(response.data);
-      router.push('/admin');
+      if (!response?.accessToken || !response?.refreshToken) {
+        throw new Error('Invalid response from server');
+      }
+      await login(response);
+      // Redirect to returnUrl if provided, otherwise let the auth hook handle it
+      if (returnUrl && typeof returnUrl === 'string') {
+        router.push(returnUrl);
+      }
     } catch (error) {
-      setError(error.response?.data?.message || 'Failed to login');
+      console.error('Login error:', error);
+      if (error.response?.status === 401) {
+        setError('Invalid email or password');
+      } else if (error.response?.data?.message) {
+        setError(error.response.data.message);
+      } else {
+        setError('Failed to login. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }

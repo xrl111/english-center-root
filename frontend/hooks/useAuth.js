@@ -13,7 +13,6 @@ export function AuthProvider({ children }) {
     // Check if there's a token in localStorage
     const token = localStorage.getItem('accessToken');
     if (token) {
-      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       // Fetch user profile
       fetchUserProfile();
     } else {
@@ -21,40 +20,64 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  const fetchUserProfile = async () => {
+  const handleRedirection = userData => {
+    // Only handle redirection if we're on an auth page
+    if (router.pathname.startsWith('/auth/')) {
+      // Check if there's a returnUrl in the query parameters
+      const returnUrl = router.query.returnUrl;
+      if (returnUrl && typeof returnUrl === 'string') {
+        router.push(returnUrl);
+      } else {
+        // Default role-based redirection
+        if (userData.role === 'admin') {
+          router.push('/admin');
+        } else {
+          router.push('/');
+        }
+      }
+    }
+  };
+
+  const fetchUserProfile = async (isInitialLogin = false) => {
     try {
       const response = await axios.get('/auth/profile');
       setUser(response.data);
 
-      // Redirect to appropriate dashboard based on role if on auth pages
-      if (router.pathname.startsWith('/auth/')) {
-        if (response.data.role === 'admin') {
-          router.push('/admin');
-        } else {
-          router.push('/dashboard');
-        }
+      // Handle redirection only if it's an initial login or we're on an auth page
+      if (isInitialLogin || router.pathname.startsWith('/auth/')) {
+        handleRedirection(response.data);
       }
     } catch (error) {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      delete axios.defaults.headers.common['Authorization'];
+      console.error('Profile fetch error:', error);
+      // Only clear tokens if it's not immediately after login
+      if (!isInitialLogin) {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        setUser(null);
+        router.push('/auth/login');
+      }
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
   const login = async authData => {
-    const { accessToken, refreshToken, user } = authData;
-    localStorage.setItem('accessToken', accessToken);
-    localStorage.setItem('refreshToken', refreshToken);
-    axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
-    setUser(user);
+    try {
+      const { accessToken, refreshToken } = authData;
 
-    // Redirect based on user role
-    if (user.role === 'admin') {
-      router.push('/admin');
-    } else {
-      router.push('/dashboard');
+      // Set tokens
+      localStorage.setItem('accessToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
+
+      // Fetch user profile and handle redirection
+      await fetchUserProfile(true);
+    } catch (error) {
+      // If profile fetch fails during login, clean up
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      setUser(null);
+      throw error;
     }
   };
 
@@ -69,7 +92,6 @@ export function AuthProvider({ children }) {
     } finally {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
-      delete axios.defaults.headers.common['Authorization'];
       setUser(null);
       router.push('/auth/login');
     }
@@ -85,13 +107,11 @@ export function AuthProvider({ children }) {
 
       localStorage.setItem('accessToken', newAccessToken);
       localStorage.setItem('refreshToken', newRefreshToken);
-      axios.defaults.headers.common['Authorization'] = `Bearer ${newAccessToken}`;
 
       return newAccessToken;
     } catch (error) {
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
-      delete axios.defaults.headers.common['Authorization'];
       setUser(null);
       router.push('/auth/login');
       throw error;
